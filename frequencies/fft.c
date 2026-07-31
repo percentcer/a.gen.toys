@@ -155,8 +155,27 @@ void forward(int n) {
   }
 }
 
+static void write_display(int n, int c, float lscale) { // Ere/Eim -> spec+phase
+  int h = n >> 1;
+  for (int v = 0; v < n; v++) {
+    int sv = ((v + h) & (n - 1)) * n;
+    for (int u = 0; u < n; u++) {
+      int idx = v * n + u;
+      int didx = sv + ((u + h) & (n - 1)); // fftshifted position of this bin
+      float re = Ere[idx], im = Eim[idx];
+      float mag = __builtin_sqrtf(re * re + im * im);
+      float L = fln(1.0f + mag) * lscale;
+      specRGBA[didx * 4 + c] = L > 255.0f ? 255 : (unsigned char)L;
+      float ph = (fatan2(im, re) + 3.14159265f) * 40.5845f; // -> 0..255
+      phaseRGBA[didx * 4 + c] = ph > 255.0f ? 255 : (unsigned char)ph;
+    }
+  }
+}
+
+// realized != 0: display the spectrum of the quantized 8-bit output (what a
+// saved image actually carries) instead of the ideal edited spectrum.
 EXPORT("render")
-void render(int n) {
+void render(int n, int realized) {
   int h = n >> 1, nn = n * n;
   float gmax = maxMag[0];
   if (maxMag[1] > gmax) gmax = maxMag[1];
@@ -169,7 +188,7 @@ void render(int n) {
       int sv = ((v + h) & (n - 1)) * n;
       for (int u = 0; u < n; u++) {
         int idx = v * n + u;
-        int didx = sv + ((u + h) & (n - 1)); // fftshifted position of this bin
+        int didx = sv + ((u + h) & (n - 1));
         float re = Fre[c][idx], im = Fim[c][idx];
         float g = gainMap[c][didx];
         re *= g; im *= g;
@@ -187,18 +206,21 @@ void render(int n) {
         if (a != 0.0f) re += fexp2(a * lmaxln * 1.442695f) - 1.0f;
         Ere[idx] = re;
         Eim[idx] = im;
-
-        float mag = __builtin_sqrtf(re * re + im * im);
-        float L = fln(1.0f + mag) * lscale;
-        specRGBA[didx * 4 + c] = L > 255.0f ? 255 : (unsigned char)L;
-        float ph = (fatan2(im, re) + 3.14159265f) * 40.5845f; // -> 0..255
-        phaseRGBA[didx * 4 + c] = ph > 255.0f ? 255 : (unsigned char)ph;
       }
     }
+    if (!realized) write_display(n, c, lscale);
     fft2d(Ere, Eim, n, -1);
     for (int i = 0; i < nn; i++) {
-      float x = Ere[i]; // real part only
+      float x = Ere[i] + 0.5f; // real part only, rounded
       outRGBA[i * 4 + c] = x <= 0.0f ? 0 : (x >= 255.0f ? 255 : (unsigned char)x);
+    }
+    if (realized) {
+      for (int i = 0; i < nn; i++) {
+        Ere[i] = (float)outRGBA[i * 4 + c];
+        Eim[i] = 0.0f;
+      }
+      fft2d(Ere, Eim, n, 1);
+      write_display(n, c, lscale);
     }
   }
 }

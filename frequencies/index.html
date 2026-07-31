@@ -150,6 +150,8 @@
       <label class="ctl">size <input type="range" id="sizeSl" min="1" max="80" value="10"></label>
       <label class="ctl">strength <input type="range" id="strengthSl" min="0" max="1" step="0.01" value="0.8"></label>
       <label class="ctl"><input type="checkbox" id="mirrorChk" checked> conjugate mirror</label>
+      <label class="ctl" title="show the spectrum of the final 8-bit image, after clamping and rounding">
+        <input type="checkbox" id="realizedChk"> realized</label>
     </div>
   </div>
 
@@ -203,6 +205,10 @@
     looks like noise, but it carries most of the image's structure. A real image has
     conjugate symmetry: each point in its spectrum has a twin opposite the center.
     With <b>conjugate mirror</b> on, your edits paint both twins.</p>
+    <p>The spectrum normally shows your <i>intended</i> edit, computed in floating
+    point. The final image holds only 8-bit pixels, so faint edits can fall below
+    one gray level and strong ones can clip. Check <b>realized</b> to see the
+    spectrum of the final image instead — what a saved copy actually keeps.</p>
 
     <h3>The editing tools</h3>
     <table>
@@ -487,7 +493,7 @@ function frame() {
   dirty = false;
   composeMaps();
   const t0 = performance.now();
-  wasm.render(N);
+  wasm.render(N, $('realizedChk').checked ? 1 : 0);
   const ms = performance.now() - t0;
   const nn4 = N * N * 4;
   const specAddr = specTab === 'mag' ? wasm.addr_spec() : wasm.addr_phase();
@@ -712,6 +718,7 @@ $('tabDiff').onclick = () => { outTab = 'diff'; $('tabDiff').classList.add('on')
   $('tabRes').classList.remove('on'); $('diffRow').style.display = ''; dirty = true; };
 $('diffSl').oninput = () => { dirty = true; };
 $('mirrorChk').onchange = () => { dirty = true; };
+$('realizedChk').onchange = () => { dirty = true; };
 
 $('openBtn').onclick = () => $('fileInput').click();
 $('fileInput').onchange = ev => { if (ev.target.files[0]) loadImage(ev.target.files[0]); };
