@@ -22,6 +22,8 @@
     background: var(--panel); color: var(--ink); border: 1px solid var(--edge);
     border-radius: 8px; padding: 6px 10px; font: inherit; cursor: pointer; }
   input[type=text] { cursor: text; width: 110px; }
+  input[type=color] { background: var(--panel); border: 1px solid var(--edge);
+    border-radius: 8px; width: 34px; height: 30px; padding: 2px; cursor: pointer; }
   button:hover, select:hover { border-color: var(--accent); }
   button.on { background: var(--accent); color: #06121f; border-color: var(--accent); }
   button.hot.on { background: var(--hot); border-color: var(--hot); }
@@ -39,8 +41,8 @@
   .stage { position: relative; width: 100%; aspect-ratio: 1; background: #000;
     border-radius: 8px; overflow: hidden; }
   .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-  #specStage canvas { image-rendering: pixelated; cursor: crosshair; }
-  #specOverlay { pointer-events: auto; }
+  #specStage canvas { image-rendering: pixelated; }
+  .stage canvas.paintable { cursor: crosshair; }
   .toolrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .toolrow .gap { flex: 1; }
   footer { padding: 4px 18px 24px; color: var(--dim); max-width: 1100px; }
@@ -57,7 +59,7 @@
 <div id="dropHint">drop an image anywhere</div>
 <header>
   <h1>🌊 Frequencies</h1>
-  <span class="sub">paint on an image's FFT, watch the pixels react — steganography playground</span>
+  <span class="sub">paint on an image or on its FFT, watch the other side react — steganography playground</span>
 </header>
 
 <div class="bar">
@@ -79,8 +81,22 @@
 
 <main>
   <div class="card">
-    <h2>Spatial domain <span class="tabs"><span style="color:var(--dim);font-weight:400;text-transform:none">original (drag &amp; drop or paste)</span></span></h2>
-    <div class="stage"><canvas id="origCanvas"></canvas></div>
+    <h2>Spatial domain — editable
+      <span class="tabs"><span style="color:var(--dim);font-weight:400;text-transform:none">drag &amp; drop or paste</span></span>
+    </h2>
+    <div class="stage">
+      <canvas id="origCanvas"></canvas>
+      <canvas id="origOverlay" class="paintable"></canvas>
+    </div>
+    <div class="toolrow" id="spatTools">
+      <button data-tool="draw" class="on">🖌️ Draw</button>
+      <button data-tool="brighten">☀️ Brighten</button>
+      <button data-tool="darken">🌑 Darken</button>
+      <button data-tool="text">🔤 Text</button>
+      <button data-tool="emoji">😀 Emoji</button>
+      <button data-tool="restore" class="hot">🩹 Restore</button>
+      <input type="color" id="colorInput" value="#ffffff" title="draw color">
+    </div>
   </div>
 
   <div class="card">
@@ -92,7 +108,7 @@
     </h2>
     <div class="stage" id="specStage">
       <canvas id="specCanvas"></canvas>
-      <canvas id="specOverlay"></canvas>
+      <canvas id="specOverlay" class="paintable"></canvas>
     </div>
     <div class="toolrow" id="magTools">
       <button data-tool="attenuate" class="on">🧽 Attenuate</button>
@@ -116,7 +132,7 @@
     <div class="toolrow" id="stampRow">
       <input type="text" id="textInput" value="secret" title="text to stamp">
       <span class="gap"></span>
-      <button class="emoji" data-emo="😀">😀</button>
+      <button class="emoji on" data-emo="😀">😀</button>
       <button class="emoji" data-emo="⭐">⭐</button>
       <button class="emoji" data-emo="☠️">☠️</button>
       <button class="emoji" data-emo="🌀">🌀</button>
@@ -142,16 +158,20 @@
 <footer>
   <b>What's happening:</b> your image is resampled to N×N, each RGB channel is run through a
   2D FFT (in WebAssembly), and the log-magnitude spectrum is shown fftshifted — low
-  frequencies in the middle, high frequencies at the edges. Anything you paint edits the
-  spectrum <i>spatially</i>: <b>attenuate</b> multiplies magnitudes toward zero,
-  <b>boost</b> amplifies them, <b>draw / text / emoji</b> add new magnitude (each painted
-  bin becomes a sinusoidal grating in the image), and the <b>phase</b> tab rotates phase.
-  The right panel is the live inverse FFT of your edited spectrum.
+  frequencies in the middle, high frequencies at the edges. Both left panels are paintable
+  and the other side reacts live. On the <b>image</b>: draw, brighten, darken, or stamp
+  text/emoji and watch its spectrum change (sharp edges spray energy across all frequencies).
+  On the <b>spectrum</b>: <b>attenuate</b> multiplies magnitudes toward zero, <b>boost</b>
+  amplifies them, <b>draw / text / emoji</b> add new magnitude (each painted bin becomes a
+  sinusoidal grating in the image), and the <b>phase</b> tab rotates phase. The right panel
+  is the live inverse FFT of the edited spectrum of the edited image, and <b>difference</b>
+  shows only what the frequency-domain edits changed.
   <br><br>
   <b>Try:</b> attenuate the outer ring (low-pass blur) · attenuate the center (edge filter) ·
   stamp a tiny faint dot far from center, then crank <i>difference</i> — that's a frequency-domain
   watermark · write text in the spectrum and see the grating texture it hides in the image ·
-  scribble on phase and watch the picture smear while its spectrum barely changes.
+  stamp text on the <i>image</i> and find its energy signature in the spectrum · scribble on
+  phase and watch the picture smear while its spectrum barely changes.
 </footer>
 
 <script src="fft_wasm.js"></script>
@@ -167,48 +187,77 @@ const memBuf = () => wasm.memory.buffer;
 
 // ---------- state ----------
 let N = 256;
-const BOOST = 7;           // boost tool: gain up to 1+BOOST
-let sourceBitmap = null;   // last dropped image, kept for re-sampling
-let tool = 'attenuate';
+const BOOST = 7;             // spectrum boost tool: gain up to 1+BOOST
+let sourceCanvas = null;     // dropped image, center-cropped to N×N (unedited)
 let specTab = 'mag', outTab = 'res';
 let emojiChar = '😀';
-let dirty = true;
+let dirty = true;            // spectrum edits or views changed -> re-render
+let spatialDirty = true;     // spatial edits changed -> recompose + forward FFT
 const $ = id => document.getElementById(id);
 
 const origCanvas = $('origCanvas'), specCanvas = $('specCanvas'),
-      overlay = $('specOverlay'), outCanvas = $('outCanvas');
-const origCtx = origCanvas.getContext('2d'),
+      outCanvas = $('outCanvas');
+const origCtx = origCanvas.getContext('2d', { willReadFrequently: true }),
       specCtx = specCanvas.getContext('2d'),
-      ovCtx = overlay.getContext('2d'),
-      outCtx = outCanvas.getContext('2d', { willReadFrequently: true });
+      outCtx = outCanvas.getContext('2d');
 
-// Edit layers: alpha channel is the payload, painted in shifted spectrum coords.
-const LAYER_NAMES = ['erase', 'boost', 'add', 'phPlus', 'phMinus'];
-const layers = {};
-function makeLayers(n, old) {
-  for (const name of LAYER_NAMES) {
+// ---------- surfaces ----------
+// Each paintable panel is a "surface": an overlay canvas for input + cursor,
+// a set of layer canvases whose alpha (or pixels) carry the edits, and a
+// per-surface active tool. The spectrum surface mirrors strokes (conjugate
+// symmetry); the spatial surface paints plain pixels.
+const surfaces = {
+  spat: {
+    overlay: $('origOverlay'),
+    layerNames: ['dark', 'bright', 'paint'],
+    toolRows: ['spatTools'],
+    tool: 'draw',
+    mirrored: () => false,
+    stampLayer: () => 'paint',
+    toolLayer: { draw: 'paint', brighten: 'bright', darken: 'dark' },
+    // stroke color per tool; null means "alpha is the payload" (white)
+    strokeColor: t => t === 'darken' ? '#000' :
+                      t === 'draw' || t === 'text' ? $('colorInput').value : '#fff',
+    onChange: () => { spatialDirty = true; },
+  },
+  spec: {
+    overlay: $('specOverlay'),
+    layerNames: ['erase', 'boost', 'add', 'phPlus', 'phMinus'],
+    toolRows: ['magTools', 'phTools'],
+    tool: 'attenuate',
+    mirrored: () => $('mirrorChk').checked,
+    stampLayer: () => specTab === 'mag' ? 'add' : 'phPlus',
+    toolLayer: { attenuate: 'erase', boost: 'boost', stamp: 'add',
+                 phplus: 'phPlus', phminus: 'phMinus' },
+    strokeColor: () => '#fff',
+    onChange: () => { dirty = true; },
+  },
+};
+
+function makeLayers(surf, n, old) {
+  const layers = {};
+  for (const name of surf.layerNames) {
     const c = document.createElement('canvas');
     c.width = c.height = n;
     const ctx = c.getContext('2d', { willReadFrequently: true });
     if (old && old[name]) ctx.drawImage(old[name].canvas, 0, 0, n, n);
     layers[name] = { canvas: c, ctx, cache: null };
   }
+  surf.layers = layers;
 }
-const toolLayer = { attenuate: 'erase', boost: 'boost', stamp: 'add',
-                    phplus: 'phPlus', phminus: 'phMinus' };
-function stampLayer() { return specTab === 'mag' ? 'add' : 'phPlus'; }
-function activeLayers() {          // layers the current tool writes to
-  if (tool === 'restore') return LAYER_NAMES;
-  if (tool === 'text' || tool === 'emoji') return [stampLayer()];
-  return [toolLayer[tool]];
+
+function activeLayers(surf) {
+  if (surf.tool === 'restore') return surf.layerNames;
+  if (surf.tool === 'text' || surf.tool === 'emoji') return [surf.stampLayer()];
+  return [surf.toolLayer[surf.tool]];
 }
 
 // ---------- undo ----------
 const undoStack = [];
-function snapshot(names) {
-  const entry = {};
+function snapshot(surf, names) {
+  const entry = { surf, imgs: {} };
   for (const nm of names)
-    entry[nm] = layers[nm].ctx.getImageData(0, 0, N, N);
+    entry.imgs[nm] = surf.layers[nm].ctx.getImageData(0, 0, N, N);
   undoStack.push(entry);
   if (undoStack.length > 15) undoStack.shift();
   return entry;
@@ -216,17 +265,18 @@ function snapshot(names) {
 function undo() {
   const entry = undoStack.pop();
   if (!entry) return;
-  for (const nm in entry) {
-    layers[nm].ctx.putImageData(entry[nm], 0, 0);
-    layers[nm].cache = null;
+  for (const nm in entry.imgs) {
+    entry.surf.layers[nm].ctx.putImageData(entry.imgs[nm], 0, 0);
+    entry.surf.layers[nm].cache = null;
   }
-  dirty = true;
+  entry.surf.onChange();
 }
 
 // ---------- sizing / image load ----------
 function setSize(n) {
   N = n;
-  for (const c of [origCanvas, specCanvas, overlay, outCanvas]) c.width = c.height = n;
+  for (const c of [origCanvas, surfaces.spat.overlay, specCanvas,
+                   surfaces.spec.overlay, outCanvas]) c.width = c.height = n;
   const half = n >> 1;
   const cosT = new Float32Array(memBuf(), wasm.addr_cos(), half);
   const sinT = new Float32Array(memBuf(), wasm.addr_sin(), half);
@@ -237,7 +287,20 @@ function setSize(n) {
   wasm.set_size(n);
 }
 
-function loadIntoWasm() { // origCanvas (N×N) -> wasm planes -> forward FFT
+// spatial pipeline: source image + spatial edit layers -> origCanvas -> wasm forward
+function composeSpatial() {
+  const L = surfaces.spat.layers;
+  origCtx.globalCompositeOperation = 'source-over';
+  if (sourceCanvas) origCtx.drawImage(sourceCanvas, 0, 0, N, N);
+  else origCtx.fillRect(0, 0, N, N);
+  origCtx.drawImage(L.dark.canvas, 0, 0);            // black @ alpha: darken
+  origCtx.globalCompositeOperation = 'lighter';
+  origCtx.drawImage(L.bright.canvas, 0, 0);          // additive white: brighten
+  origCtx.globalCompositeOperation = 'source-over';
+  origCtx.drawImage(L.paint.canvas, 0, 0);           // colored paint / stamps
+}
+
+function forwardFromCanvas() {
   const d = origCtx.getImageData(0, 0, N, N).data;
   const nn = N * N;
   const planes = [0, 1, 2].map(c => new Float32Array(memBuf(), wasm.addr_img(c), nn));
@@ -246,23 +309,23 @@ function loadIntoWasm() { // origCanvas (N×N) -> wasm planes -> forward FFT
     planes[1][i] = d[i * 4 + 1];
     planes[2][i] = d[i * 4 + 2];
   }
-  const t0 = performance.now();
   wasm.forward(N);
-  $('status').textContent = `${N}×${N} · forward FFT ${(performance.now() - t0).toFixed(1)} ms`;
-  dirty = true;
 }
 
-function drawSource() { // center-crop sourceBitmap to square, scaled to N
-  const b = sourceBitmap;
-  const s = Math.min(b.width, b.height);
-  origCtx.drawImage(b, (b.width - s) / 2, (b.height - s) / 2, s, s, 0, 0, N, N);
-  loadIntoWasm();
+function drawSource(bitmap) { // center-crop to square, scaled to N
+  sourceCanvas = document.createElement('canvas');
+  sourceCanvas.width = sourceCanvas.height = N;
+  const s = Math.min(bitmap.width, bitmap.height);
+  sourceCanvas.getContext('2d').drawImage(bitmap,
+    (bitmap.width - s) / 2, (bitmap.height - s) / 2, s, s, 0, 0, N, N);
+  sourceCanvas.bitmap = bitmap; // keep for re-sampling on resolution change
+  spatialDirty = true;
 }
 
 async function loadImage(blob) {
   try {
-    sourceBitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
-    drawSource();
+    const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+    drawSource(bmp);
   } catch (e) { $('status').textContent = 'could not read that image'; }
 }
 
@@ -284,13 +347,12 @@ function demoImage() { // procedural demo so the page is alive before any drop
   }
   g.fillStyle = '#fff'; g.font = 'bold 64px system-ui'; g.textAlign = 'center';
   g.fillText('FREQ', s / 2, s * .28);
-  sourceBitmap = c;
-  drawSource();
+  drawSource(c);
 }
 
-// ---------- compose edit layers -> wasm maps ----------
+// ---------- compose spectrum edit layers -> wasm maps ----------
 function layerData(nm) {
-  const L = layers[nm];
+  const L = surfaces.spec.layers[nm];
   if (!L.cache) L.cache = L.ctx.getImageData(0, 0, N, N).data;
   return L.cache;
 }
@@ -313,6 +375,15 @@ function composeMaps() {
 let diffImg = null;
 function frame() {
   requestAnimationFrame(frame);
+  if (spatialDirty) {
+    spatialDirty = false;
+    composeSpatial();
+    const t0 = performance.now();
+    forwardFromCanvas();
+    $('status').textContent =
+      `${N}×${N} · forward FFT ${(performance.now() - t0).toFixed(1)} ms`;
+    dirty = true;
+  }
   if (!dirty) return;
   dirty = false;
   composeMaps();
@@ -327,7 +398,7 @@ function frame() {
   if (outTab === 'res') {
     outCtx.putImageData(new ImageData(out, N, N), 0, 0);
   } else {
-    const orig = origCtx.getImageData(0, 0, N, N).data;
+    const orig = origCtx.getImageData(0, 0, N, N).data; // spatially-edited image
     if (!diffImg || diffImg.width !== N) diffImg = new ImageData(N, N);
     const dd = diffImg.data, k = +$('diffSl').value;
     for (let i = 0; i < nn4; i += 4) {
@@ -342,18 +413,18 @@ function frame() {
 }
 
 // ---------- painting ----------
-let stroke = null; // {points, bases:{name:ImageData}, names}
-function canvasPos(ev) {
-  const r = overlay.getBoundingClientRect();
+let stroke = null; // {surf, points, bases:{name:ImageData}, names}
+function canvasPos(surf, ev) {
+  const r = surf.overlay.getBoundingClientRect();
   return { x: (ev.clientX - r.left) * N / r.width,
            y: (ev.clientY - r.top) * N / r.height };
 }
-function strokeStyleFor(ctx) {
+function strokeStyleFor(surf, ctx) {
   ctx.lineCap = ctx.lineJoin = 'round';
   ctx.lineWidth = +$('sizeSl').value;
-  ctx.strokeStyle = ctx.fillStyle = '#fff';
+  ctx.strokeStyle = ctx.fillStyle = surf.strokeColor(surf.tool);
   ctx.globalAlpha = +$('strengthSl').value;
-  ctx.globalCompositeOperation = tool === 'restore' ? 'destination-out' : 'source-over';
+  ctx.globalCompositeOperation = surf.tool === 'restore' ? 'destination-out' : 'source-over';
 }
 function drawPolyline(ctx, pts) {
   ctx.beginPath();
@@ -367,88 +438,95 @@ function drawPolyline(ctx, pts) {
   }
 }
 function paintStroke() {
+  const surf = stroke.surf;
   for (const nm of stroke.names) {
-    const L = layers[nm];
+    const L = surf.layers[nm];
     L.ctx.putImageData(stroke.bases[nm], 0, 0);
     L.ctx.save();
-    strokeStyleFor(L.ctx);
+    strokeStyleFor(surf, L.ctx);
     drawPolyline(L.ctx, stroke.points);
-    if ($('mirrorChk').checked) {
+    if (surf.mirrored()) {
       L.ctx.setTransform(-1, 0, 0, -1, N, N); // 180° about spectrum center
       drawPolyline(L.ctx, stroke.points);
     }
     L.ctx.restore();
     L.cache = null;
   }
-  dirty = true;
+  surf.onChange();
 }
-function stampAt(p) { // text / emoji click-stamp
-  const nm = stampLayer();
-  snapshot([nm]);
-  const L = layers[nm], str = tool === 'emoji' ? emojiChar : ($('textInput').value || '?');
+function stampAt(surf, p) { // text / emoji click-stamp
+  const nm = surf.stampLayer();
+  snapshot(surf, [nm]);
+  const L = surf.layers[nm], str = surf.tool === 'emoji' ? emojiChar : ($('textInput').value || '?');
   L.ctx.save();
-  strokeStyleFor(L.ctx);
+  strokeStyleFor(surf, L.ctx);
   L.ctx.font = `${Math.max(8, +$('sizeSl').value * 2)}px system-ui`;
   L.ctx.textAlign = 'center'; L.ctx.textBaseline = 'middle';
   L.ctx.fillText(str, p.x, p.y);
-  if ($('mirrorChk').checked) {
+  if (surf.mirrored()) {
     L.ctx.setTransform(-1, 0, 0, -1, N, N);
     L.ctx.fillText(str, p.x, p.y);
   }
   L.ctx.restore();
   L.cache = null;
-  dirty = true;
+  surf.onChange();
 }
 
-overlay.addEventListener('pointerdown', ev => {
-  ev.preventDefault();
-  overlay.setPointerCapture(ev.pointerId);
-  const p = canvasPos(ev);
-  if (tool === 'text' || tool === 'emoji') { stampAt(p); return; }
-  const names = activeLayers();
-  const bases = snapshot(names);
-  stroke = { points: [p], bases, names };
-  paintStroke();
-});
-overlay.addEventListener('pointermove', ev => {
-  const p = canvasPos(ev);
-  drawCursor(p);
-  if (stroke) { stroke.points.push(p); paintStroke(); }
-});
-overlay.addEventListener('pointerup', () => { stroke = null; });
-overlay.addEventListener('pointerleave', () => { if (!stroke) ovCtx.clearRect(0, 0, N, N); });
-
-function drawCursor(p) {
-  ovCtx.clearRect(0, 0, N, N);
+function drawCursor(surf, p) {
+  const ov = surf.overlay.getContext('2d');
+  ov.clearRect(0, 0, N, N);
   const r = Math.max(+$('sizeSl').value / 2, 1.5);
-  ovCtx.strokeStyle = 'rgba(255,255,255,.9)';
-  ovCtx.lineWidth = 1;
-  ovCtx.beginPath(); ovCtx.arc(p.x, p.y, r, 0, 7); ovCtx.stroke();
-  if ($('mirrorChk').checked) {
-    ovCtx.strokeStyle = 'rgba(94,177,255,.7)';
-    ovCtx.beginPath(); ovCtx.arc(N - p.x, N - p.y, r, 0, 7); ovCtx.stroke();
+  ov.strokeStyle = 'rgba(255,255,255,.9)';
+  ov.lineWidth = 1;
+  ov.beginPath(); ov.arc(p.x, p.y, r, 0, 7); ov.stroke();
+  if (surf.mirrored()) {
+    ov.strokeStyle = 'rgba(94,177,255,.7)';
+    ov.beginPath(); ov.arc(N - p.x, N - p.y, r, 0, 7); ov.stroke();
   }
 }
 
+for (const surf of Object.values(surfaces)) {
+  surf.overlay.addEventListener('pointerdown', ev => {
+    ev.preventDefault();
+    surf.overlay.setPointerCapture(ev.pointerId);
+    const p = canvasPos(surf, ev);
+    if (surf.tool === 'text' || surf.tool === 'emoji') { stampAt(surf, p); return; }
+    const names = activeLayers(surf);
+    const bases = snapshot(surf, names).imgs;
+    stroke = { surf, points: [p], bases, names };
+    paintStroke();
+  });
+  surf.overlay.addEventListener('pointermove', ev => {
+    const p = canvasPos(surf, ev);
+    drawCursor(surf, p);
+    if (stroke && stroke.surf === surf) { stroke.points.push(p); paintStroke(); }
+  });
+  surf.overlay.addEventListener('pointerup', () => { stroke = null; });
+  surf.overlay.addEventListener('pointerleave', () => {
+    if (!stroke) surf.overlay.getContext('2d').clearRect(0, 0, N, N);
+  });
+}
+
 // ---------- UI wiring ----------
-function wireTools(rowId) {
+function wireTools(surf, rowId) {
   $(rowId).querySelectorAll('button[data-tool]').forEach(btn => {
     btn.onclick = () => {
-      tool = btn.dataset.tool;
-      document.querySelectorAll('button[data-tool]').forEach(b =>
-        b.classList.toggle('on', b === btn));
+      surf.tool = btn.dataset.tool;
+      for (const rid of surf.toolRows)
+        $(rid).querySelectorAll('button[data-tool]').forEach(b =>
+          b.classList.toggle('on', b === btn));
     };
   });
 }
-wireTools('magTools'); wireTools('phTools');
+wireTools(surfaces.spat, 'spatTools');
+wireTools(surfaces.spec, 'magTools');
+wireTools(surfaces.spec, 'phTools');
 
 document.querySelectorAll('button.emoji').forEach(btn => {
   btn.onclick = () => {
     emojiChar = btn.dataset.emo;
-    tool = 'emoji';
-    document.querySelectorAll('button[data-tool]').forEach(b =>
-      b.classList.toggle('on', b.dataset.tool === 'emoji' &&
-        b.closest('.toolrow').style.display !== 'none'));
+    document.querySelectorAll('button.emoji').forEach(b =>
+      b.classList.toggle('on', b === btn));
   };
 });
 
@@ -458,8 +536,7 @@ function setSpecTab(t) {
   $('tabPh').classList.toggle('on', t === 'ph');
   $('magTools').style.display = t === 'mag' ? '' : 'none';
   $('phTools').style.display = t === 'ph' ? '' : 'none';
-  const first = $(t === 'mag' ? 'magTools' : 'phTools').querySelector('button');
-  first.click();
+  $(t === 'mag' ? 'magTools' : 'phTools').querySelector('button').click();
   dirty = true;
 }
 $('tabMag').onclick = () => setSpecTab('mag');
@@ -484,19 +561,21 @@ document.addEventListener('keydown', ev => {
   if ((ev.ctrlKey || ev.metaKey) && ev.key === 'z') { ev.preventDefault(); undo(); }
 });
 $('resetBtn').onclick = () => {
-  snapshot(LAYER_NAMES);
-  for (const nm of LAYER_NAMES) {
-    layers[nm].ctx.clearRect(0, 0, N, N);
-    layers[nm].cache = null;
+  for (const surf of Object.values(surfaces)) {
+    snapshot(surf, surf.layerNames);
+    for (const nm of surf.layerNames) {
+      surf.layers[nm].ctx.clearRect(0, 0, N, N);
+      surf.layers[nm].cache = null;
+    }
+    surf.onChange();
   }
-  dirty = true;
 };
 $('resSel').onchange = () => {
-  const old = { ...layers };
+  const olds = new Map(Object.values(surfaces).map(s => [s, s.layers]));
   setSize(+$('resSel').value);
-  makeLayers(N, old);
+  for (const surf of Object.values(surfaces)) makeLayers(surf, N, olds.get(surf));
   undoStack.length = 0;
-  if (sourceBitmap) drawSource();
+  if (sourceCanvas) drawSource(sourceCanvas.bitmap);
 };
 
 // drag & drop + paste
@@ -519,7 +598,7 @@ document.addEventListener('paste', ev => {
 
 // ---------- go ----------
 setSize(N);
-makeLayers(N, null);
+for (const surf of Object.values(surfaces)) makeLayers(surf, N, null);
 demoImage();
 requestAnimationFrame(frame);
 
