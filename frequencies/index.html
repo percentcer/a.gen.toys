@@ -86,6 +86,7 @@
 <div class="bar">
   <span id="brand">🌊 frequencies</span>
   <button id="openBtn">📂 Open image…</button>
+  <button id="testBtn" title="generate a random geometric test image">🎲 Test image</button>
   <input type="file" id="fileInput" accept="image/*" hidden>
   <button id="saveBtn">💾 Save result</button>
   <button id="undoBtn">↩ Undo</button>
@@ -440,6 +441,75 @@ async function fetchFeaturedImage() {
   } catch (e) { if (!userImage) placeholderImage('drop an image here'); }
 }
 
+// Bold geometric generators — each has a strong, recognizable FFT signature:
+// stripes -> dots on a perpendicular line, checker/dots -> a lattice,
+// rings -> a ring, boxes -> sinc crosses, star -> an angular fan.
+const TEST_COLORS = ['#0b0b0e', '#ffffff', '#ff3b30', '#ffd60a',
+                     '#007aff', '#34c759', '#af52de', '#ff9500'];
+function randTestImage() {
+  const s = 512, c = document.createElement('canvas');
+  c.width = c.height = s;
+  const g = c.getContext('2d');
+  const R = (a, b) => a + Math.random() * (b - a);
+  const RI = (a, b) => Math.floor(R(a, b + 1));
+  const cols = [...TEST_COLORS].sort(() => Math.random() - .5);
+  g.fillStyle = cols[0];
+  g.fillRect(0, 0, s, s);
+  const kinds = ['stripes', 'checker', 'rings', 'dots', 'boxes', 'star'];
+  const kind = kinds[RI(0, kinds.length - 1)];
+  g.fillStyle = cols[1];
+  if (kind === 'stripes') {
+    const p = R(10, 60);
+    g.save(); g.translate(s / 2, s / 2); g.rotate(R(0, Math.PI));
+    for (let x = -s; x < s; x += p * 2) g.fillRect(x, -s, p, 2 * s);
+    g.restore();
+  } else if (kind === 'checker') {
+    const p = RI(16, 64);
+    for (let y = 0; y < s; y += p)
+      for (let x = 0; x < s; x += p)
+        if ((x + y) / p % 2 < 1) g.fillRect(x, y, p, p);
+  } else if (kind === 'rings') {
+    const w = R(8, 30), cx = R(s * .3, s * .7), cy = R(s * .3, s * .7);
+    for (let r = Math.ceil(s / w) * w; r > 0; r -= w) {
+      g.fillStyle = cols[Math.round(r / w) % 2];
+      g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
+    }
+  } else if (kind === 'dots') {
+    const d = R(28, 70), r = d * R(.2, .42);
+    for (let y = d / 2; y < s; y += d)
+      for (let x = d / 2; x < s; x += d) {
+        g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+      }
+  } else if (kind === 'boxes') {
+    const nBox = RI(3, 7);
+    for (let i = 0; i < nBox; i++) {
+      g.fillStyle = cols[1 + i % 3];
+      const w = R(s * .08, s * .5), h = R(s * .08, s * .5);
+      g.fillRect(R(0, s - w), R(0, s - h), w, h);
+    }
+  } else { // star
+    const rays = RI(6, 24) * 2;
+    for (let i = 0; i < rays; i += 2) {
+      g.beginPath();
+      g.moveTo(s / 2, s / 2);
+      g.arc(s / 2, s / 2, s, i / rays * 2 * Math.PI, (i + 1) / rays * 2 * Math.PI);
+      g.fill();
+    }
+  }
+  if (Math.random() < .5) { // bold accent shape for an extra signature
+    g.fillStyle = cols[2];
+    if (Math.random() < .5) {
+      g.beginPath();
+      g.arc(R(s * .25, s * .75), R(s * .25, s * .75), R(s * .08, s * .2), 0, 7);
+      g.fill();
+    } else {
+      const w = R(s * .1, s * .35);
+      g.fillRect(R(0, s - w), R(0, s - w), w, w);
+    }
+  }
+  return { canvas: c, name: kind };
+}
+
 function placeholderImage(text) { // quiet placeholder until the fetch lands
   const s = 512, c = document.createElement('canvas');
   c.width = c.height = s;
@@ -721,6 +791,16 @@ $('mirrorChk').onchange = () => { dirty = true; };
 $('realizedChk').onchange = () => { dirty = true; };
 
 $('openBtn').onclick = () => $('fileInput').click();
+$('testBtn').onclick = () => {
+  const t = randTestImage();
+  userImage = true;
+  for (const surf of Object.values(surfaces)) clearSurface(surf);
+  undoStack.length = 0;
+  drawSource(t.canvas);
+  const a = $('sourceNote');
+  a.textContent = 'test: ' + t.name;
+  a.removeAttribute('href');
+};
 $('fileInput').onchange = ev => { if (ev.target.files[0]) loadImage(ev.target.files[0]); };
 $('saveBtn').onclick = () => {
   const a = document.createElement('a');
