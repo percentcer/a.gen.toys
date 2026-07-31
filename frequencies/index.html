@@ -67,6 +67,10 @@
     font-size: 24px; z-index: 10; pointer-events: none; }
   body.dragging #dropHint { display: grid; }
   .emoji { font-size: 16px; padding: 4px 7px; }
+  .pop { position: fixed; z-index: 15; display: flex; gap: 6px; align-items: center;
+    background: var(--panel); border: 1px solid var(--edge); border-radius: 8px;
+    padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+  .pop[hidden] { display: none; }
   #status { color: var(--dim); font-size: 12px; margin-left: auto; }
 </style>
 </head>
@@ -142,16 +146,6 @@
       <label class="ctl">strength <input type="range" id="strengthSl" min="0" max="1" step="0.01" value="0.8"></label>
       <label class="ctl"><input type="checkbox" id="mirrorChk" checked> conjugate mirror</label>
     </div>
-    <div class="toolrow" id="stampRow">
-      <input type="text" id="textInput" value="secret" title="text to stamp">
-      <span class="gap"></span>
-      <button class="emoji on" data-emo="😀">😀</button>
-      <button class="emoji" data-emo="⭐">⭐</button>
-      <button class="emoji" data-emo="☠️">☠️</button>
-      <button class="emoji" data-emo="🌀">🌀</button>
-      <button class="emoji" data-emo="❤️">❤️</button>
-      <button class="emoji" data-emo="🐱">🐱</button>
-    </div>
   </div>
 
   <div class="card">
@@ -167,6 +161,18 @@
     </div>
   </div>
 </main>
+
+<div id="textPop" class="pop" hidden>
+  <input type="text" id="textInput" value="secret" title="text to stamp">
+</div>
+<div id="emojiPop" class="pop" hidden>
+  <button class="emoji on" data-emo="😀">😀</button>
+  <button class="emoji" data-emo="⭐">⭐</button>
+  <button class="emoji" data-emo="☠️">☠️</button>
+  <button class="emoji" data-emo="🌀">🌀</button>
+  <button class="emoji" data-emo="❤️">❤️</button>
+  <button class="emoji" data-emo="🐱">🐱</button>
+</div>
 
 <div id="infoModal" hidden>
   <div id="infoBox">
@@ -583,8 +589,41 @@ document.querySelectorAll('button.emoji').forEach(btn => {
     emojiChar = btn.dataset.emo;
     document.querySelectorAll('button.emoji').forEach(b =>
       b.classList.toggle('on', b === btn));
+    if (popAnchor) popAnchor.click(); // arm the tool the popover came from
   };
 });
+
+// The text input and emoji presets live in popovers that appear when the
+// pointer rests on (or taps) any Text / Emoji tool button.
+const pops = { text: $('textPop'), emoji: $('emojiPop') };
+let popTimer = null, popAnchor = null;
+function showPop(kind, btn) {
+  clearTimeout(popTimer);
+  popAnchor = btn;
+  for (const k in pops) pops[k].hidden = k !== kind;
+  const pop = pops[kind], r = btn.getBoundingClientRect();
+  pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + 'px';
+  pop.style.top = (r.bottom + 6) + 'px';
+}
+function hidePops() { for (const k in pops) pops[k].hidden = true; }
+function hidePopsSoon() {
+  clearTimeout(popTimer);
+  popTimer = setTimeout(hidePops, 250);
+}
+document.querySelectorAll('button[data-tool=text], button[data-tool=emoji]').forEach(btn => {
+  btn.addEventListener('mouseenter', () => showPop(btn.dataset.tool, btn));
+  btn.addEventListener('click', () => showPop(btn.dataset.tool, btn)); // touch
+  btn.addEventListener('mouseleave', hidePopsSoon);
+});
+for (const pop of Object.values(pops)) {
+  pop.addEventListener('mouseenter', () => clearTimeout(popTimer));
+  pop.addEventListener('mouseleave', hidePopsSoon);
+}
+document.addEventListener('pointerdown', ev => {
+  if (!ev.target.closest('.pop, button[data-tool=text], button[data-tool=emoji]'))
+    hidePops();
+});
+$('textInput').addEventListener('input', () => { if (popAnchor) popAnchor.click(); });
 
 function setSpecTab(t) {
   specTab = t;
