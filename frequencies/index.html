@@ -12,12 +12,25 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--ink);
     font: 14px/1.45 system-ui, "Segoe UI", sans-serif; }
-  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px;
-    padding: 14px 18px 6px; }
-  header h1 { margin: 0; font-size: 20px; letter-spacing: .5px; }
-  header .sub { color: var(--dim); }
   .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
-    padding: 8px 18px; }
+    padding: 10px 18px; }
+  #brand { font-weight: 600; letter-spacing: .5px; margin-right: 6px; }
+  #helpBtn { border-radius: 50%; width: 30px; height: 30px; padding: 0;
+    color: var(--dim); }
+  #infoModal { position: fixed; inset: 0; z-index: 20; display: grid;
+    place-items: center; background: rgba(8, 10, 14, .7); }
+  #infoModal[hidden] { display: none; }
+  #infoBox { background: var(--panel); border: 1px solid var(--edge);
+    border-radius: 12px; max-width: 640px; max-height: 85vh; overflow-y: auto;
+    padding: 6px 22px 14px; margin: 16px; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+  #infoBox h3 { color: var(--accent); font-size: 14px; margin: 16px 0 4px; }
+  #infoBox p { margin: 6px 0; color: var(--dim); }
+  #infoBox b { color: var(--ink); font-weight: 600; }
+  #infoBox table { border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+  #infoBox th { text-align: left; color: var(--ink); font-weight: 600; }
+  #infoBox th, #infoBox td { border: 1px solid var(--edge); padding: 5px 9px;
+    color: var(--dim); vertical-align: top; }
+  #infoBox td[rowspan] { color: var(--ink); }
   button, select, input[type=text] {
     background: var(--panel); color: var(--ink); border: 1px solid var(--edge);
     border-radius: 8px; padding: 6px 10px; font: inherit; cursor: pointer; }
@@ -45,8 +58,6 @@
   .stage canvas.paintable { cursor: crosshair; }
   .toolrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .toolrow .gap { flex: 1; }
-  footer { padding: 4px 18px 24px; color: var(--dim); max-width: 1100px; }
-  footer b { color: var(--ink); }
   #dropHint { position: fixed; inset: 0; display: none; place-items: center;
     background: rgba(14,17,22,.85); border: 3px dashed var(--accent);
     font-size: 24px; z-index: 10; pointer-events: none; }
@@ -57,12 +68,9 @@
 </head>
 <body>
 <div id="dropHint">drop an image anywhere</div>
-<header>
-  <h1>🌊 Frequencies</h1>
-  <span class="sub">paint on an image or on its FFT, watch the other side react — steganography playground</span>
-</header>
 
 <div class="bar">
+  <span id="brand">🌊 frequencies</span>
   <button id="openBtn">📂 Open image…</button>
   <input type="file" id="fileInput" accept="image/*" hidden>
   <button id="saveBtn">💾 Save result</button>
@@ -77,6 +85,7 @@
   </label>
   <label class="ctl"><input type="checkbox" id="mirrorChk" checked> conjugate mirror</label>
   <span id="status">loading wasm…</span>
+  <button id="helpBtn" title="help (?)">?</button>
 </div>
 
 <main>
@@ -155,24 +164,51 @@
   </div>
 </main>
 
-<footer>
-  <b>What's happening:</b> your image is resampled to N×N, each RGB channel is run through a
-  2D FFT (in WebAssembly), and the log-magnitude spectrum is shown fftshifted — low
-  frequencies in the middle, high frequencies at the edges. Both left panels are paintable
-  and the other side reacts live. On the <b>image</b>: draw, brighten, darken, or stamp
-  text/emoji and watch its spectrum change (sharp edges spray energy across all frequencies).
-  On the <b>spectrum</b>: <b>attenuate</b> multiplies magnitudes toward zero, <b>boost</b>
-  amplifies them, <b>draw / text / emoji</b> add new magnitude (each painted bin becomes a
-  sinusoidal grating in the image), and the <b>phase</b> tab rotates phase. The right panel
-  is the live inverse FFT of the edited spectrum of the edited image, and <b>difference</b>
-  shows only what the frequency-domain edits changed.
-  <br><br>
-  <b>Try:</b> attenuate the outer ring (low-pass blur) · attenuate the center (edge filter) ·
-  stamp a tiny faint dot far from center, then crank <i>difference</i> — that's a frequency-domain
-  watermark · write text in the spectrum and see the grating texture it hides in the image ·
-  stamp text on the <i>image</i> and find its energy signature in the spectrum · scribble on
-  phase and watch the picture smear while its spectrum barely changes.
-</footer>
+<div id="infoModal" hidden>
+  <div id="infoBox">
+    <h3>What is this?</h3>
+    <p>This tool edits images in the frequency domain. It resamples your image to
+    N×N and transforms each RGB channel with a 2D FFT, computed in WebAssembly in
+    your browser. Paint on the image, and its spectrum changes. Paint on the
+    spectrum, and the inverse FFT rebuilds the image. The <b>difference</b> view
+    amplifies the gap between the two left panels; use it to find hidden marks.</p>
+
+    <h3>Reading the magnitude &amp; phase images</h3>
+    <p>Both views put frequency zero at the center. Frequency rises toward the
+    edges: smooth gradients live near the middle, fine detail and sharp edges far
+    out. An edge in the image spreads energy across the spectrum, perpendicular to
+    the edge.</p>
+    <p><b>Magnitude</b> shows the strength of each frequency, log-scaled, per RGB
+    channel. <b>Phase</b> shows each frequency's alignment as gray from −π to π. It
+    looks like noise, but it carries most of the image's structure. A real image has
+    conjugate symmetry: each point in its spectrum has a twin opposite the center.
+    With <b>conjugate mirror</b> on, your edits paint both twins.</p>
+
+    <h3>The editing tools</h3>
+    <table>
+      <tr><th>Panel</th><th>Tool</th><th>Effect</th></tr>
+      <tr><td rowspan="5">image</td>
+          <td>🖌️ Draw</td><td>paints pixels in the chosen color</td></tr>
+      <tr><td>☀️ Brighten</td><td>adds light</td></tr>
+      <tr><td>🌑 Darken</td><td>removes light</td></tr>
+      <tr><td>🔤 Text / 😀 Emoji</td><td>stamps the text or emoji where you click</td></tr>
+      <tr><td>🩹 Restore</td><td>brushes edits away, back to the original pixels</td></tr>
+      <tr><td rowspan="4">magnitude</td>
+          <td>🧽 Attenuate</td><td>scales magnitudes toward zero — the outer ring blurs
+            the image, the center keeps only edges</td></tr>
+      <tr><td>📢 Boost</td><td>amplifies the frequencies already there</td></tr>
+      <tr><td>🖌️ Draw / 🔤 Text / 😀 Emoji</td><td>adds magnitude — each painted bin
+            becomes a sinusoidal grating in the image</td></tr>
+      <tr><td>🩹 Restore</td><td>reverts painted bins</td></tr>
+      <tr><td rowspan="2">phase</td>
+          <td>🌀 Shift + / −</td><td>rotates the phase of the frequencies you paint,
+            which smears structure while the magnitude view barely changes</td></tr>
+      <tr><td>🩹 Restore</td><td>reverts painted bins</td></tr>
+    </table>
+    <p><b>size</b> and <b>strength</b> apply to every tool. <b>Undo</b> is Ctrl+Z.
+    Close this with <b>?</b> or Esc.</p>
+  </div>
+</div>
 
 <script src="fft_wasm.js"></script>
 <script>
@@ -557,8 +593,16 @@ $('saveBtn').onclick = () => {
   a.click();
 };
 $('undoBtn').onclick = undo;
+const toggleInfo = show => { $('infoModal').hidden =
+  show === undefined ? !$('infoModal').hidden : !show; };
+$('helpBtn').onclick = () => toggleInfo();
+$('infoModal').onclick = ev => { if (ev.target === $('infoModal')) toggleInfo(false); };
 document.addEventListener('keydown', ev => {
   if ((ev.ctrlKey || ev.metaKey) && ev.key === 'z') { ev.preventDefault(); undo(); }
+  if (ev.key === 'Escape') toggleInfo(false);
+  if ((ev.key === '?' || (ev.key === '/' && ev.shiftKey)) &&
+      !/^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName))
+    toggleInfo();
 });
 $('resetBtn').onclick = () => {
   for (const surf of Object.values(surfaces)) {
