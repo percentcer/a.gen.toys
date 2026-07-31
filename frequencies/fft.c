@@ -16,7 +16,7 @@
 static float imgp[3][MAXN * MAXN];                     // input planes, 0..255
 static float Fre[3][MAXN * MAXN], Fim[3][MAXN * MAXN]; // forward FFT (kept pristine)
 static float Ere[MAXN * MAXN], Eim[MAXN * MAXN];       // edited spectrum, per-channel scratch
-static float gainMap[MAXN * MAXN];                     // magnitude multiplier (shifted coords)
+static float gainMap[3][MAXN * MAXN];                  // magnitude multiplier per channel (shifted coords)
 static float addMap[3][MAXN * MAXN];                   // additive magnitude per channel, 0..1 (shifted coords)
 static float phMap[MAXN * MAXN];                       // phase rotation, radians (shifted coords)
 static float cosT[MAXN / 2], sinT[MAXN / 2];           // e^(2*pi*i*k/n) table, filled by JS
@@ -120,7 +120,7 @@ static void fft2d(float *re, float *im, int n, int dir) {
 // ---- exports ----
 
 EXPORT("addr_img")   float *addr_img(int c) { return imgp[c]; }
-EXPORT("addr_gain")  float *addr_gain(void) { return gainMap; }
+EXPORT("addr_gain")  float *addr_gain(int c) { return gainMap[c]; }
 EXPORT("addr_add")   float *addr_add(int c) { return addMap[c]; }
 EXPORT("addr_ph")    float *addr_ph(void)   { return phMap; }
 EXPORT("addr_cos")   float *addr_cos(void)  { return cosT; }
@@ -171,7 +171,7 @@ void render(int n) {
         int idx = v * n + u;
         int didx = sv + ((u + h) & (n - 1)); // fftshifted position of this bin
         float re = Fre[c][idx], im = Fim[c][idx];
-        float g = gainMap[didx];
+        float g = gainMap[c][didx];
         re *= g; im *= g;
         float p = phMap[didx];
         if (p != 0.0f) {
