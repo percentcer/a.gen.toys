@@ -49,6 +49,13 @@ static float fln(float x) { // natural log, x > 0; ~0.01 accuracy (display only)
   return ((float)e + p) * 0.69314718f;
 }
 
+static float fexp2(float x) { // 2^x, ~0.1% accuracy
+  float fl = __builtin_floorf(x);
+  float f = x - fl;
+  union { unsigned u; float fv; } v = { (unsigned)((int)fl + 127) << 23 };
+  return v.fv * (1.0f + f * (0.69314718f + f * (0.24022651f + f * 0.05550411f)));
+}
+
 static float fatan(float z) { // |z| <= 1
   float z2 = z * z;
   return z * (0.9998660f + z2 * (-0.3302995f + z2 * (0.1801410f + z2 * (-0.0851330f + 0.0208351f * z2))));
@@ -148,15 +155,14 @@ void forward(int n) {
   }
 }
 
-// addAmp: additive-magnitude scale in spectrum units (JS passes strength*128*n*n
-// so a full-alpha stamped bin reconstructs to a ~128-level grating).
 EXPORT("render")
-void render(int n, float addAmp) {
+void render(int n) {
   int h = n >> 1, nn = n * n;
   float gmax = maxMag[0];
   if (maxMag[1] > gmax) gmax = maxMag[1];
   if (maxMag[2] > gmax) gmax = maxMag[2];
-  float lscale = 255.0f / fln(1.0f + gmax);
+  float lmaxln = fln(1.0f + gmax);
+  float lscale = 255.0f / lmaxln;
 
   for (int c = 0; c < 3; c++) {
     for (int v = 0; v < n; v++) {
@@ -174,8 +180,11 @@ void render(int n, float addAmp) {
           im = re * sr + im * cr;
           re = r2;
         }
+        // Additive strength maps exponentially so painted bins appear in the
+        // log-magnitude display with brightness proportional to the slider:
+        // a=1 is as bright as the spectrum's max, a->0 vanishes.
         float a = addMap[didx];
-        if (a != 0.0f) re += a * addAmp;
+        if (a != 0.0f) re += fexp2(a * lmaxln * 1.442695f) - 1.0f;
         Ere[idx] = re;
         Eim[idx] = im;
 
