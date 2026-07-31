@@ -391,11 +391,21 @@ function drawSource(bitmap) { // center-crop to square, scaled to N
   spatialDirty = true;
 }
 
+function clearSurface(surf) {
+  for (const nm of surf.layerNames) {
+    surf.layers[nm].ctx.clearRect(0, 0, N, N);
+    surf.layers[nm].cache = null;
+  }
+  surf.onChange();
+}
+
 let userImage = false;
 async function loadImage(blob) {
   try {
     const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
     userImage = true;
+    for (const surf of Object.values(surfaces)) clearSurface(surf); // fresh start
+    undoStack.length = 0;
     drawSource(bmp);
     const a = $('sourceNote');
     a.textContent = blob.name || 'pasted image';
@@ -726,11 +736,7 @@ document.addEventListener('keydown', ev => {
 $('resetBtn').onclick = () => {
   for (const surf of Object.values(surfaces)) {
     snapshot(surf, surf.layerNames);
-    for (const nm of surf.layerNames) {
-      surf.layers[nm].ctx.clearRect(0, 0, N, N);
-      surf.layers[nm].cache = null;
-    }
-    surf.onChange();
+    clearSurface(surf);
   }
 };
 $('resSel').onchange = () => {
