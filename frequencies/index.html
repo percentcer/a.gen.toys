@@ -170,6 +170,7 @@
 
 <div id="textPop" class="pop" hidden>
   <input type="text" id="textInput" value="secret" title="text to stamp">
+  <label class="ctl"><input type="checkbox" id="textAtten"> attenuate</label>
 </div>
 <div id="emojiPop" class="pop" hidden>
   <button class="emoji on" data-emo="😀">😀</button>
@@ -215,7 +216,8 @@
       <tr><td>📢 Boost</td><td>amplifies the frequencies already there</td></tr>
       <tr><td>🖌️ Draw / 🔤 Text / 😀 Emoji</td><td>adds magnitude in the draw color,
             per RGB channel — each painted bin becomes a sinusoidal grating in the
-            image; emoji use their own colors</td></tr>
+            image; emoji use their own colors; the text popover's <b>attenuate</b>
+            option stamps darkness instead</td></tr>
       <tr><td>🩹 Restore</td><td>reverts painted bins</td></tr>
       <tr><td rowspan="2">phase</td>
           <td>🌀 Shift + / −</td><td>rotates the phase of the frequencies you paint,
@@ -267,10 +269,10 @@ const surfaces = {
     toolRows: ['spatTools'],
     tool: 'draw',
     mirrored: () => false,
-    stampLayer: () => 'paint',
+    stampLayer: t => t === 'text' && $('textAtten').checked ? 'dark' : 'paint',
     toolLayer: { draw: 'paint', brighten: 'bright', darken: 'dark' },
-    strokeColor: t => t === 'darken' ? '#000' :
-                      t === 'draw' || t === 'text' ? drawColor : '#fff',
+    strokeColor: t => (t === 'darken' || (t === 'text' && $('textAtten').checked)) ? '#000' :
+                      (t === 'draw' || t === 'text') ? drawColor : '#fff',
     onChange: () => { spatialDirty = true; },
   },
   spec: {
@@ -279,7 +281,9 @@ const surfaces = {
     toolRows: ['magTools', 'phTools'],
     tool: 'attenuate',
     mirrored: () => $('mirrorChk').checked,
-    stampLayer: () => specTab === 'mag' ? 'add' : 'phPlus',
+    stampLayer: t => specTab === 'mag'
+      ? (t === 'text' && $('textAtten').checked ? 'erase' : 'add')
+      : (t === 'text' && $('textAtten').checked ? 'phMinus' : 'phPlus'),
     toolLayer: { attenuate: 'erase', boost: 'boost', stamp: 'add',
                  phplus: 'phPlus', phminus: 'phMinus' },
     // additive tools carry color (per-channel magnitude); the rest are alpha-only
@@ -302,7 +306,7 @@ function makeLayers(surf, n, old) {
 
 function activeLayers(surf) {
   if (surf.tool === 'restore') return surf.layerNames;
-  if (surf.tool === 'text' || surf.tool === 'emoji') return [surf.stampLayer()];
+  if (surf.tool === 'text' || surf.tool === 'emoji') return [surf.stampLayer(surf.tool)];
   return [surf.toolLayer[surf.tool]];
 }
 
@@ -528,7 +532,7 @@ function paintStroke() {
   surf.onChange();
 }
 function stampAt(surf, p) { // text / emoji click-stamp
-  const nm = surf.stampLayer();
+  const nm = surf.stampLayer(surf.tool);
   snapshot(surf, [nm]);
   const L = surf.layers[nm], str = surf.tool === 'emoji' ? emojiChar : ($('textInput').value || '?');
   L.ctx.save();
@@ -575,6 +579,7 @@ for (const surf of Object.values(surfaces)) {
     if (stroke && stroke.surf === surf) { stroke.points.push(p); paintStroke(); }
   });
   surf.overlay.addEventListener('pointerup', () => { stroke = null; });
+  surf.overlay.addEventListener('pointercancel', () => { stroke = null; });
   surf.overlay.addEventListener('pointerleave', () => {
     if (!stroke) surf.overlay.getContext('2d').clearRect(0, 0, N, N);
   });
