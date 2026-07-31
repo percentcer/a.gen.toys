@@ -17,7 +17,7 @@ static float imgp[3][MAXN * MAXN];                     // input planes, 0..255
 static float Fre[3][MAXN * MAXN], Fim[3][MAXN * MAXN]; // forward FFT (kept pristine)
 static float Ere[MAXN * MAXN], Eim[MAXN * MAXN];       // edited spectrum, per-channel scratch
 static float gainMap[MAXN * MAXN];                     // magnitude multiplier (shifted coords)
-static float addMap[MAXN * MAXN];                      // additive magnitude, 0..1 (shifted coords)
+static float addMap[3][MAXN * MAXN];                   // additive magnitude per channel, 0..1 (shifted coords)
 static float phMap[MAXN * MAXN];                       // phase rotation, radians (shifted coords)
 static float cosT[MAXN / 2], sinT[MAXN / 2];           // e^(2*pi*i*k/n) table, filled by JS
 static unsigned char outRGBA[MAXN * MAXN * 4];         // reconstructed image
@@ -121,7 +121,7 @@ static void fft2d(float *re, float *im, int n, int dir) {
 
 EXPORT("addr_img")   float *addr_img(int c) { return imgp[c]; }
 EXPORT("addr_gain")  float *addr_gain(void) { return gainMap; }
-EXPORT("addr_add")   float *addr_add(void)  { return addMap; }
+EXPORT("addr_add")   float *addr_add(int c) { return addMap[c]; }
 EXPORT("addr_ph")    float *addr_ph(void)   { return phMap; }
 EXPORT("addr_cos")   float *addr_cos(void)  { return cosT; }
 EXPORT("addr_sin")   float *addr_sin(void)  { return sinT; }
@@ -183,7 +183,7 @@ void render(int n) {
         // Additive strength maps exponentially so painted bins appear in the
         // log-magnitude display with brightness proportional to the slider:
         // a=1 is as bright as the spectrum's max, a->0 vanishes.
-        float a = addMap[didx];
+        float a = addMap[c][didx];
         if (a != 0.0f) re += fexp2(a * lmaxln * 1.442695f) - 1.0f;
         Ere[idx] = re;
         Eim[idx] = im;

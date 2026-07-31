@@ -213,8 +213,9 @@
           <td>🧽 Attenuate</td><td>scales magnitudes toward zero — the outer ring blurs
             the image, the center keeps only edges</td></tr>
       <tr><td>📢 Boost</td><td>amplifies the frequencies already there</td></tr>
-      <tr><td>🖌️ Draw / 🔤 Text / 😀 Emoji</td><td>adds magnitude — each painted bin
-            becomes a sinusoidal grating in the image</td></tr>
+      <tr><td>🖌️ Draw / 🔤 Text / 😀 Emoji</td><td>adds magnitude in the draw color,
+            per RGB channel — each painted bin becomes a sinusoidal grating in the
+            image; emoji use their own colors</td></tr>
       <tr><td>🩹 Restore</td><td>reverts painted bins</td></tr>
       <tr><td rowspan="2">phase</td>
           <td>🌀 Shift + / −</td><td>rotates the phase of the frequencies you paint,
@@ -281,7 +282,8 @@ const surfaces = {
     stampLayer: () => specTab === 'mag' ? 'add' : 'phPlus',
     toolLayer: { attenuate: 'erase', boost: 'boost', stamp: 'add',
                  phplus: 'phPlus', phminus: 'phMinus' },
-    strokeColor: () => '#fff',
+    // additive tools carry color (per-channel magnitude); the rest are alpha-only
+    strokeColor: t => t === 'stamp' || t === 'text' ? drawColor : '#fff',
     onChange: () => { dirty = true; },
   },
 };
@@ -427,14 +429,17 @@ function layerData(nm) {
 function composeMaps() {
   const nn = N * N;
   const gain = new Float32Array(memBuf(), wasm.addr_gain(), nn);
-  const add = new Float32Array(memBuf(), wasm.addr_add(), nn);
+  const add = [0, 1, 2].map(c => new Float32Array(memBuf(), wasm.addr_add(c), nn));
   const ph = new Float32Array(memBuf(), wasm.addr_ph(), nn);
   const e = layerData('erase'), b = layerData('boost'), a = layerData('add'),
         pp = layerData('phPlus'), pm = layerData('phMinus');
   for (let i = 0; i < nn; i++) {
     const j = i * 4 + 3;
     gain[i] = (1 - e[j] / 255) * (1 + BOOST * (b[j] / 255));
-    add[i] = a[j] / 255;
+    const al = a[j] / 65025; // alpha/255 with the /255 channel scale folded in
+    add[0][i] = a[i * 4] * al;
+    add[1][i] = a[i * 4 + 1] * al;
+    add[2][i] = a[i * 4 + 2] * al;
     ph[i] = (pp[j] - pm[j]) / 255 * Math.PI;
   }
 }
@@ -633,9 +638,10 @@ function hidePopsSoon() {
   clearTimeout(popTimer);
   popTimer = setTimeout(hidePops, 250);
 }
-document.querySelectorAll('button[data-tool=draw], button[data-tool=text], button[data-tool=emoji]').forEach(btn => {
-  btn.addEventListener('mouseenter', () => showPop(btn.dataset.tool, btn));
-  btn.addEventListener('click', () => showPop(btn.dataset.tool, btn)); // touch
+document.querySelectorAll('button[data-tool=draw], button[data-tool=stamp], button[data-tool=text], button[data-tool=emoji]').forEach(btn => {
+  const kind = btn.dataset.tool === 'stamp' ? 'draw' : btn.dataset.tool;
+  btn.addEventListener('mouseenter', () => showPop(kind, btn));
+  btn.addEventListener('click', () => showPop(kind, btn)); // touch
   btn.addEventListener('mouseleave', hidePopsSoon);
 });
 for (const pop of Object.values(pops)) {
@@ -643,7 +649,7 @@ for (const pop of Object.values(pops)) {
   pop.addEventListener('mouseleave', hidePopsSoon);
 }
 document.addEventListener('pointerdown', ev => {
-  if (!ev.target.closest('.pop, button[data-tool=draw], button[data-tool=text], button[data-tool=emoji]'))
+  if (!ev.target.closest('.pop, button[data-tool=draw], button[data-tool=stamp], button[data-tool=text], button[data-tool=emoji]'))
     hidePops();
 });
 $('textInput').addEventListener('input', () => { if (popAnchor) popAnchor.click(); });
