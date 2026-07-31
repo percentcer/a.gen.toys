@@ -50,6 +50,10 @@
     text-transform: uppercase; letter-spacing: 1px; display: flex; gap: 8px;
     align-items: center; }
   .tabs { margin-left: auto; display: flex; gap: 4px; }
+  #sourceNote { margin-left: auto; color: var(--dim); font-weight: 400;
+    text-transform: none; letter-spacing: 0; text-decoration: none;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 55%; }
+  #sourceNote[href]:hover { color: var(--accent); text-decoration: underline; }
   .tabs button { padding: 3px 9px; font-size: 12px; border-radius: 6px; }
   .stage { position: relative; width: 100%; aspect-ratio: 1; background: #000;
     border-radius: 8px; overflow: hidden; }
@@ -90,7 +94,7 @@
 <main>
   <div class="card">
     <h2>Spatial domain — editable
-      <span class="tabs"><span style="color:var(--dim);font-weight:400;text-transform:none">drag &amp; drop or paste</span></span>
+      <a id="sourceNote" target="_blank" rel="noopener">drag &amp; drop or paste</a>
     </h2>
     <div class="stage">
       <canvas id="origCanvas"></canvas>
@@ -358,31 +362,47 @@ function drawSource(bitmap) { // center-crop to square, scaled to N
   spatialDirty = true;
 }
 
+let userImage = false;
 async function loadImage(blob) {
   try {
     const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+    userImage = true;
     drawSource(bmp);
+    const a = $('sourceNote');
+    a.textContent = blob.name || 'pasted image';
+    a.removeAttribute('href');
   } catch (e) { $('status').textContent = 'could not read that image'; }
 }
 
-function demoImage() { // procedural demo so the page is alive before any drop
+// Default image: a random pick from Commons' featured pictures. The procedural
+// demo shows instantly and stays if this fails (offline, file:// quirks, ...).
+async function fetchFeaturedImage() {
+  try {
+    const api = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*' +
+      '&generator=search&gsrnamespace=6&gsrlimit=1&gsrsort=random&gsrsearch=' +
+      encodeURIComponent('incategory:"Featured pictures on Wikimedia Commons" filetype:bitmap') +
+      '&prop=imageinfo&iiprop=url&iiurlwidth=1024';
+    const q = await (await fetch(api)).json();
+    const page = Object.values(q.query.pages)[0];
+    const info = page.imageinfo[0];
+    const blob = await (await fetch(info.thumburl)).blob();
+    const bmp = await createImageBitmap(blob);
+    if (userImage) return; // the user beat us to it; keep their image
+    drawSource(bmp);
+    const a = $('sourceNote');
+    a.textContent = page.title.replace(/^File:/, '');
+    a.href = info.descriptionurl;
+  } catch (e) { if (!userImage) placeholderImage('drop an image here'); }
+}
+
+function placeholderImage(text) { // quiet placeholder until the fetch lands
   const s = 512, c = document.createElement('canvas');
   c.width = c.height = s;
   const g = c.getContext('2d');
-  const sky = g.createLinearGradient(0, 0, 0, s);
-  sky.addColorStop(0, '#2b3a67'); sky.addColorStop(.6, '#e08e45'); sky.addColorStop(1, '#f8c976');
-  g.fillStyle = sky; g.fillRect(0, 0, s, s);
-  g.fillStyle = '#ffe9a8';
-  g.beginPath(); g.arc(s * .62, s * .38, 55, 0, 7); g.fill();
-  g.fillStyle = '#1d2438';
-  g.beginPath(); g.moveTo(0, s); g.lineTo(s * .35, s * .45); g.lineTo(s * .62, s); g.fill();
-  g.beginPath(); g.moveTo(s * .4, s); g.lineTo(s * .75, s * .55); g.lineTo(s, s); g.fill();
-  g.strokeStyle = 'rgba(255,255,255,.25)'; g.lineWidth = 3;
-  for (let y = s * .8; y < s; y += 12) {
-    g.beginPath(); g.moveTo(0, y); g.lineTo(s, y + 6); g.stroke();
-  }
-  g.fillStyle = '#fff'; g.font = 'bold 64px system-ui'; g.textAlign = 'center';
-  g.fillText('FREQ', s / 2, s * .28);
+  g.fillStyle = '#171c24'; g.fillRect(0, 0, s, s);
+  g.fillStyle = '#4a5568'; g.font = '28px system-ui';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, s / 2, s / 2);
   drawSource(c);
 }
 
@@ -643,7 +663,8 @@ document.addEventListener('paste', ev => {
 // ---------- go ----------
 setSize(N);
 for (const surf of Object.values(surfaces)) makeLayers(surf, N, null);
-demoImage();
+placeholderImage('loading…');
+fetchFeaturedImage();
 requestAnimationFrame(frame);
 
 })();
