@@ -87,6 +87,7 @@
   <span id="brand">🌊 frequencies</span>
   <button id="openBtn">📂 Open image…</button>
   <button id="testBtn" title="generate a random geometric test image">🎲 Test image</button>
+  <button id="wikiBtn" title="fetch a random Wikimedia Commons featured picture">🖼️ Random photo</button>
   <input type="file" id="fileInput" accept="image/*" hidden>
   <button id="saveBtn">💾 Save result</button>
   <button id="undoBtn">↩ Undo</button>
@@ -420,10 +421,19 @@ async function loadImage(blob) {
   } catch (e) { $('status').textContent = 'could not read that image'; }
 }
 
-// Default image: a random pick from Commons' featured pictures. The procedural
-// demo shows instantly and stays if this fails (offline, file:// quirks, ...).
-async function fetchFeaturedImage() {
+// A random pick from Commons' featured pictures: the default image at startup,
+// and fetched on demand by the Random photo button (force = true).
+async function fetchFeaturedImage(force) {
   try {
+    if (force) {
+      userImage = true;
+      for (const surf of Object.values(surfaces)) clearSurface(surf);
+      undoStack.length = 0;
+      placeholderImage('loading…');
+      const a = $('sourceNote');
+      a.textContent = 'loading…';
+      a.removeAttribute('href');
+    }
     const api = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*' +
       '&generator=search&gsrnamespace=6&gsrlimit=1&gsrsort=random&gsrsearch=' +
       encodeURIComponent('incategory:"Featured pictures on Wikimedia Commons" filetype:bitmap') +
@@ -433,13 +443,16 @@ async function fetchFeaturedImage() {
     const info = page.imageinfo[0];
     const blob = await (await fetch(info.thumburl)).blob();
     const bmp = await createImageBitmap(blob);
-    if (userImage) return; // the user beat us to it; keep their image
+    if (!force && userImage) return; // the user beat us to it; keep their image
     drawSource(bmp);
     const a = $('sourceNote');
     a.textContent = page.title.replace(/^File:/, '');
     a.href = info.descriptionurl;
-  } catch (e) { if (!userImage) placeholderImage('drop an image here'); }
+  } catch (e) {
+    if (force || !userImage) placeholderImage('fetch failed — drop an image here');
+  }
 }
+$('wikiBtn').onclick = () => fetchFeaturedImage(true);
 
 // Bold geometric generators — each has a strong, recognizable FFT signature:
 // stripes -> dots on a perpendicular line, checker/dots -> a lattice,
