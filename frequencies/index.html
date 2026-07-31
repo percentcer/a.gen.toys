@@ -71,6 +71,11 @@
     background: var(--panel); border: 1px solid var(--edge); border-radius: 8px;
     padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
   .pop[hidden] { display: none; }
+  #colorPop { display: grid; grid-template-columns: repeat(8, 22px); gap: 5px; }
+  #colorPop[hidden] { display: none; }
+  .swatch { width: 22px; height: 22px; padding: 0; border-radius: 5px;
+    border: 1px solid var(--edge); }
+  .swatch.on { outline: 2px solid var(--accent); }
   #status { color: var(--dim); font-size: 12px; margin-left: auto; }
 </style>
 </head>
@@ -111,7 +116,6 @@
       <button data-tool="text">🔤 Text</button>
       <button data-tool="emoji">😀 Emoji</button>
       <button data-tool="restore" class="hot">🩹 Restore</button>
-      <input type="color" id="colorInput" value="#ffffff" title="draw color">
     </div>
   </div>
 
@@ -161,6 +165,8 @@
     </div>
   </div>
 </main>
+
+<div id="colorPop" class="pop" hidden></div>
 
 <div id="textPop" class="pop" hidden>
   <input type="text" id="textInput" value="secret" title="text to stamp">
@@ -237,6 +243,7 @@ const BOOST = 7;             // spectrum boost tool: gain up to 1+BOOST
 let sourceCanvas = null;     // dropped image, center-cropped to N×N (unedited)
 let specTab = 'mag', outTab = 'res';
 let emojiChar = '😀';
+let drawColor = '#ffffff';
 let dirty = true;            // spectrum edits or views changed -> re-render
 let spatialDirty = true;     // spatial edits changed -> recompose + forward FFT
 const $ = id => document.getElementById(id);
@@ -261,9 +268,8 @@ const surfaces = {
     mirrored: () => false,
     stampLayer: () => 'paint',
     toolLayer: { draw: 'paint', brighten: 'bright', darken: 'dark' },
-    // stroke color per tool; null means "alpha is the payload" (white)
     strokeColor: t => t === 'darken' ? '#000' :
-                      t === 'draw' || t === 'text' ? $('colorInput').value : '#fff',
+                      t === 'draw' || t === 'text' ? drawColor : '#fff',
     onChange: () => { spatialDirty = true; },
   },
   spec: {
@@ -593,9 +599,26 @@ document.querySelectorAll('button.emoji').forEach(btn => {
   };
 });
 
-// The text input and emoji presets live in popovers that appear when the
-// pointer rests on (or taps) any Text / Emoji tool button.
-const pops = { text: $('textPop'), emoji: $('emojiPop') };
+// The color swatch, text input, and emoji presets live in popovers that
+// appear when the pointer rests on (or taps) a Draw / Text / Emoji button.
+const SWATCH = ['#ffffff', '#c0c0c0', '#808080', '#000000',
+                '#ff3b30', '#ff9500', '#ffd60a', '#34c759',
+                '#00c7be', '#32ade6', '#007aff', '#5856d6',
+                '#af52de', '#ff2d55', '#a2845e', '#243b16'];
+for (const col of SWATCH) {
+  const b = document.createElement('button');
+  b.className = 'swatch' + (col === drawColor ? ' on' : '');
+  b.style.background = col;
+  b.title = col;
+  b.onclick = () => {
+    drawColor = col;
+    $('colorPop').querySelectorAll('.swatch').forEach(s =>
+      s.classList.toggle('on', s === b));
+    if (popAnchor) popAnchor.click();
+  };
+  $('colorPop').appendChild(b);
+}
+const pops = { draw: $('colorPop'), text: $('textPop'), emoji: $('emojiPop') };
 let popTimer = null, popAnchor = null;
 function showPop(kind, btn) {
   clearTimeout(popTimer);
@@ -610,7 +633,7 @@ function hidePopsSoon() {
   clearTimeout(popTimer);
   popTimer = setTimeout(hidePops, 250);
 }
-document.querySelectorAll('button[data-tool=text], button[data-tool=emoji]').forEach(btn => {
+document.querySelectorAll('button[data-tool=draw], button[data-tool=text], button[data-tool=emoji]').forEach(btn => {
   btn.addEventListener('mouseenter', () => showPop(btn.dataset.tool, btn));
   btn.addEventListener('click', () => showPop(btn.dataset.tool, btn)); // touch
   btn.addEventListener('mouseleave', hidePopsSoon);
@@ -620,7 +643,7 @@ for (const pop of Object.values(pops)) {
   pop.addEventListener('mouseleave', hidePopsSoon);
 }
 document.addEventListener('pointerdown', ev => {
-  if (!ev.target.closest('.pop, button[data-tool=text], button[data-tool=emoji]'))
+  if (!ev.target.closest('.pop, button[data-tool=draw], button[data-tool=text], button[data-tool=emoji]'))
     hidePops();
 });
 $('textInput').addEventListener('input', () => { if (popAnchor) popAnchor.click(); });
