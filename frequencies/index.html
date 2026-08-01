@@ -88,6 +88,7 @@
   <button id="openBtn">📂 Open image…</button>
   <button id="testBtn" title="generate a random geometric test image">🎲 Test image</button>
   <button id="wikiBtn" title="fetch a random Wikimedia Commons featured picture">🖼️ Random photo</button>
+  <button id="blankBtn" title="start from a black canvas">⬛ Blank</button>
   <input type="file" id="fileInput" accept="image/*" hidden>
   <button id="saveBtn">💾 Save result</button>
   <button id="undoBtn">↩ Undo</button>
@@ -453,6 +454,18 @@ async function fetchFeaturedImage(force) {
   }
 }
 $('wikiBtn').onclick = () => fetchFeaturedImage(true);
+$('blankBtn').onclick = () => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  c.getContext('2d').fillRect(0, 0, 512, 512); // default fill is black
+  userImage = true;
+  for (const surf of Object.values(surfaces)) clearSurface(surf);
+  undoStack.length = 0;
+  drawSource(c);
+  const a = $('sourceNote');
+  a.textContent = 'blank canvas';
+  a.removeAttribute('href');
+};
 
 // Bold geometric generators — each has a strong, recognizable FFT signature:
 // stripes -> dots on a perpendicular line, checker/dots -> a lattice,

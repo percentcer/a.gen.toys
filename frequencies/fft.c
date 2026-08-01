@@ -180,6 +180,10 @@ void render(int n, int realized) {
   float gmax = maxMag[0];
   if (maxMag[1] > gmax) gmax = maxMag[1];
   if (maxMag[2] > gmax) gmax = maxMag[2];
+  // Floor the display/add reference at a mid-gray image's DC so dark or blank
+  // inputs still take visible additive edits (and never normalize by ~log(1)).
+  float gfloor = 128.0f * (float)nn;
+  if (gmax < gfloor) gmax = gfloor;
   float lmaxln = fln(1.0f + gmax);
   float lscale = 255.0f / lmaxln;
 
