@@ -26,6 +26,7 @@ static unsigned char phaseRGBA[MAXN * MAXN * 4];       // phase display
 static unsigned short bitrev[MAXN];
 static float colRe[MAXN], colIm[MAXN];                 // column FFT scratch
 static float maxMag[3];
+static float radProf[768], radCnt[768];                // radially averaged |F|, 1/f^2 floored
 
 // ---- tiny math (freestanding: no libm) ----
 
@@ -54,6 +55,13 @@ static float fexp2(float x) { // 2^x, ~0.1% accuracy
   float f = x - fl;
   union { unsigned u; float fv; } v = { (unsigned)((int)fl + 127) << 23 };
   return v.fv * (1.0f + f * (0.69314718f + f * (0.24022651f + f * 0.05550411f)));
+}
+
+static float bin_phase(int u, int v) { // stable pseudo-random phase per bin
+  unsigned x = (unsigned)u * 374761393u + (unsigned)v * 668265263u;
+  x = (x ^ (x >> 13)) * 1274126177u;
+  x ^= x >> 16;
+  return (float)x * (6.2831853f / 4294967296.0f);
 }
 
 static float fatan(float z) { // |z| <= 1
@@ -143,15 +151,34 @@ void set_size(int n) {
 
 EXPORT("forward")
 void forward(int n) {
+  int h = n >> 1;
+  int rmax = (int)(0.70711f * (float)n) + 2;
+  for (int r = 0; r < rmax; r++) { radProf[r] = 0.0f; radCnt[r] = 0.0f; }
   for (int c = 0; c < 3; c++) {
     for (int i = 0; i < n * n; i++) { Fre[c][i] = imgp[c][i]; Fim[c][i] = 0.0f; }
     fft2d(Fre[c], Fim[c], n, 1);
     float mx = 0.0f;
-    for (int i = 0; i < n * n; i++) {
-      float m = Fre[c][i] * Fre[c][i] + Fim[c][i] * Fim[c][i];
-      if (m > mx) mx = m;
+    for (int v = 0; v < n; v++) {
+      int fv = ((v + h) & (n - 1)) - h;
+      for (int u = 0; u < n; u++) {
+        int fu = ((u + h) & (n - 1)) - h;
+        int idx = v * n + u;
+        float m2 = Fre[c][idx] * Fre[c][idx] + Fim[c][idx] * Fim[c][idx];
+        if (m2 > mx) mx = m2;
+        int r = (int)(__builtin_sqrtf((float)(fu * fu + fv * fv)) + 0.5f);
+        radProf[r] += __builtin_sqrtf(m2);
+        radCnt[r] += 1.0f;
+      }
     }
     maxMag[c] = __builtin_sqrtf(mx);
+  }
+  // Average per radius, floored by a synthetic natural-image falloff so blank
+  // or sparse spectra still give painting a sensible local reference level.
+  float nn2 = (float)n * (float)n;
+  for (int r = 0; r < rmax; r++) {
+    float avg = radCnt[r] > 0.0f ? radProf[r] / radCnt[r] : 0.0f;
+    float synth = 32.0f * nn2 / (1.0f + (float)(r * r));
+    radProf[r] = avg > synth ? avg : synth;
   }
 }
 
@@ -186,14 +213,11 @@ void render(int n, int realized) {
   if (gmax < gfloor) gmax = gfloor;
   float lmaxln = fln(1.0f + gmax);
   float lscale = 255.0f / lmaxln;
-  // Additive edits scale against gmax/4, not gmax: full strength then yields
-  // the largest grating that still fits in 8-bit pixels (~±64 on mid-gray)
-  // instead of one that is guaranteed to clip into harmonics.
-  float addln = fln(1.0f + gmax * 0.25f);
 
   for (int c = 0; c < 3; c++) {
     for (int v = 0; v < n; v++) {
       int sv = ((v + h) & (n - 1)) * n;
+      int fv = ((v + h) & (n - 1)) - h;
       for (int u = 0; u < n; u++) {
         int idx = v * n + u;
         int didx = sv + ((u + h) & (n - 1));
@@ -207,11 +231,31 @@ void render(int n, int realized) {
           im = re * sr + im * cr;
           re = r2;
         }
-        // Additive strength maps exponentially so painted bins appear in the
-        // log-magnitude display with brightness proportional to the slider:
-        // a=1 is as bright as the spectrum's max, a->0 vanishes.
+        // Additive strength is a dB offset relative to the radial profile:
+        // painting at 0.5 adds content as loud as what naturally lives at
+        // this frequency; the slider spans -20..+20 dB around that.
         float a = addMap[c][didx];
-        if (a != 0.0f) re += fexp2(a * addln * 1.442695f) - 1.0f;
+        if (a > 0.02f) {
+          int fu = ((u + h) & (n - 1)) - h;
+          int r = (int)(__builtin_sqrtf((float)(fu * fu + fv * fv)) + 0.5f);
+          // r == 0 is the image's mean brightness; painting must not add to
+          // it ("+10 dB of DC" would white out the image).
+          if (r > 0) {
+            float dB = (a - 0.5f) * 40.0f;
+            float T = radProf[r] * fexp2(dB * 0.1660964f); // 10^(dB/20)
+            // Spread-spectrum phase: pseudo-random per bin so painted energy
+            // spreads across the image instead of stacking at the origin.
+            // Conjugate-symmetric (theta(-k) = -theta(k)) so mirrored pairs
+            // still sum to clean full-amplitude waves.
+            int mu = (n - u) & (n - 1), mv = (n - v) & (n - 1);
+            float th;
+            if (u == mu && v == mv) th = 0.0f; // self-conjugate bins stay real
+            else if (v < mv || (v == mv && u < mu)) th = bin_phase(u, v);
+            else th = -bin_phase(mu, mv);
+            re += T * fcos(th);
+            im += T * fsin(th);
+          }
+        }
         Ere[idx] = re;
         Eim[idx] = im;
       }

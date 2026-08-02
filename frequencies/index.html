@@ -151,7 +151,8 @@
     </div>
     <div class="toolrow">
       <label class="ctl">size <input type="range" id="sizeSl" min="1" max="80" value="10"></label>
-      <label class="ctl">strength <input type="range" id="strengthSl" min="0" max="1" step="0.01" value="0.8"></label>
+      <label class="ctl">strength <input type="range" id="strengthSl" min="0" max="1" step="0.01" value="0.75">
+        <span id="strengthVal"></span></label>
       <label class="ctl"><input type="checkbox" id="mirrorChk" checked> conjugate mirror</label>
       <label class="ctl" title="show the spectrum of the final 8-bit image, after clamping and rounding">
         <input type="checkbox" id="realizedChk"> realized</label>
@@ -226,17 +227,20 @@
           <td>🧽 Attenuate</td><td>scales magnitudes toward zero — the outer ring blurs
             the image, the center keeps only edges</td></tr>
       <tr><td>📢 Boost</td><td>amplifies the frequencies already there</td></tr>
-      <tr><td>🖌️ Draw / 🔤 Text / 😀 Emoji</td><td>adds magnitude in the tool's color,
-            per RGB channel — each painted bin becomes a sinusoidal grating in the
-            image; emoji use their own colors; the text popover's <b>attenuate</b>
-            option removes the color's channels instead of adding them</td></tr>
+      <tr><td>🖌️ Draw / 🔤 Text / 😀 Emoji</td><td>adds frequency content in the
+            tool's color; each painted bin becomes a sinusoidal grating in the
+            image. Strength is <b>dB relative to what naturally lives at that
+            frequency</b>: 0 dB blends in, + stands out, − hides. The text
+            popover's <b>attenuate</b> option removes the color's channels
+            instead</td></tr>
       <tr><td>🩹 Restore</td><td>reverts painted bins</td></tr>
       <tr><td rowspan="2">phase</td>
           <td>🌀 Shift + / −</td><td>rotates the phase of the frequencies you paint,
             which smears structure while the magnitude view barely changes</td></tr>
       <tr><td>🩹 Restore</td><td>reverts painted bins</td></tr>
     </table>
-    <p><b>size</b> and <b>strength</b> apply to every tool. <b>Undo</b> is Ctrl+Z.
+    <p><b>size</b> and <b>strength</b> apply to every tool; for additive spectrum
+    painting the strength readout switches to dB. <b>Undo</b> is Ctrl+Z.
     Close this with <b>?</b> or Esc.</p>
   </div>
 </div>
@@ -775,6 +779,17 @@ for (const surf of Object.values(surfaces)) {
 }
 
 // ---------- UI wiring ----------
+// The strength slider is opacity for most tools, but for additive spectrum
+// painting it is a dB offset relative to the local radial spectrum level.
+function updateStrengthLabel() {
+  const v = +$('strengthSl').value, t = surfaces.spec.tool;
+  const isDb = specTab === 'mag' &&
+    (t === 'stamp' || t === 'emoji' || (t === 'text' && !$('textAtten').checked));
+  $('strengthVal').textContent = isDb
+    ? `${v >= 0.5 ? '+' : ''}${((v - 0.5) * 40).toFixed(0)} dB`
+    : `${Math.round(v * 100)}%`;
+}
+
 function wireTools(surf, rowId) {
   $(rowId).querySelectorAll('button[data-tool]').forEach(btn => {
     btn.onclick = () => {
@@ -782,6 +797,7 @@ function wireTools(surf, rowId) {
       for (const rid of surf.toolRows)
         $(rid).querySelectorAll('button[data-tool]').forEach(b =>
           b.classList.toggle('on', b === btn));
+      updateStrengthLabel();
     };
   });
 }
@@ -880,6 +896,9 @@ $('tabDiff').onclick = () => { outTab = 'diff'; $('tabDiff').classList.add('on')
 $('diffSl').oninput = () => { dirty = true; };
 $('mirrorChk').onchange = () => { dirty = true; };
 $('realizedChk').onchange = () => { dirty = true; };
+$('strengthSl').oninput = updateStrengthLabel;
+$('textAtten').onchange = updateStrengthLabel;
+updateStrengthLabel();
 
 $('openBtn').onclick = () => $('fileInput').click();
 $('testBtn').onclick = () => {
