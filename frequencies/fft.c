@@ -186,6 +186,10 @@ void render(int n, int realized) {
   if (gmax < gfloor) gmax = gfloor;
   float lmaxln = fln(1.0f + gmax);
   float lscale = 255.0f / lmaxln;
+  // Additive edits scale against gmax/4, not gmax: full strength then yields
+  // the largest grating that still fits in 8-bit pixels (~±64 on mid-gray)
+  // instead of one that is guaranteed to clip into harmonics.
+  float addln = fln(1.0f + gmax * 0.25f);
 
   for (int c = 0; c < 3; c++) {
     for (int v = 0; v < n; v++) {
@@ -207,7 +211,7 @@ void render(int n, int realized) {
         // log-magnitude display with brightness proportional to the slider:
         // a=1 is as bright as the spectrum's max, a->0 vanishes.
         float a = addMap[c][didx];
-        if (a != 0.0f) re += fexp2(a * lmaxln * 1.442695f) - 1.0f;
+        if (a != 0.0f) re += fexp2(a * addln * 1.442695f) - 1.0f;
         Ere[idx] = re;
         Eim[idx] = im;
       }

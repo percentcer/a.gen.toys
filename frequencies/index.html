@@ -88,7 +88,7 @@
   <button id="openBtn">📂 Open image…</button>
   <button id="testBtn" title="generate a random geometric test image">🎲 Test image</button>
   <button id="wikiBtn" title="fetch a random Wikimedia Commons featured picture">🖼️ Random photo</button>
-  <button id="blankBtn" title="start from a black canvas">⬛ Blank</button>
+  <button id="blankBtn" title="start from a mid-gray canvas">⬛ Blank</button>
   <input type="file" id="fileInput" accept="image/*" hidden>
   <button id="saveBtn">💾 Save result</button>
   <button id="undoBtn">↩ Undo</button>
@@ -457,7 +457,9 @@ $('wikiBtn').onclick = () => fetchFeaturedImage(true);
 $('blankBtn').onclick = () => {
   const c = document.createElement('canvas');
   c.width = c.height = 512;
-  c.getContext('2d').fillRect(0, 0, 512, 512); // default fill is black
+  const g = c.getContext('2d');
+  g.fillStyle = '#808080'; // mid-gray: headroom for sines to swing both ways
+  g.fillRect(0, 0, 512, 512);
   userImage = true;
   for (const surf of Object.values(surfaces)) clearSurface(surf);
   undoStack.length = 0;
@@ -573,7 +575,7 @@ function composeMaps() {
 }
 
 // ---------- render loop ----------
-let diffImg = null;
+let diffImg = null, specImg = null, outImg = null;
 function frame() {
   requestAnimationFrame(frame);
   if (spatialDirty) {
@@ -592,12 +594,20 @@ function frame() {
   wasm.render(N, $('realizedChk').checked ? 1 : 0);
   const ms = performance.now() - t0;
   const nn4 = N * N * 4;
+  // Copy out of wasm memory into stable ImageData buffers before painting:
+  // handing putImageData a live view of memory the next render mutates can
+  // rasterize stale/mixed pixels (visible as frame flicker in realized mode).
+  if (!specImg || specImg.width !== N) {
+    specImg = new ImageData(N, N);
+    outImg = new ImageData(N, N);
+  }
   const specAddr = specTab === 'mag' ? wasm.addr_spec() : wasm.addr_phase();
-  specCtx.putImageData(new ImageData(
-    new Uint8ClampedArray(memBuf(), specAddr, nn4), N, N), 0, 0);
+  specImg.data.set(new Uint8ClampedArray(memBuf(), specAddr, nn4));
+  specCtx.putImageData(specImg, 0, 0);
   const out = new Uint8ClampedArray(memBuf(), wasm.addr_out(), nn4);
   if (outTab === 'res') {
-    outCtx.putImageData(new ImageData(out, N, N), 0, 0);
+    outImg.data.set(out);
+    outCtx.putImageData(outImg, 0, 0);
   } else {
     const orig = origCtx.getImageData(0, 0, N, N).data; // spatially-edited image
     if (!diffImg || diffImg.width !== N) diffImg = new ImageData(N, N);
@@ -630,7 +640,12 @@ function strokeStyleFor(surf, ctx) {
 function drawPolyline(ctx, pts) {
   ctx.beginPath();
   if (pts.length === 1) {
-    ctx.arc(pts[0].x, pts[0].y, ctx.lineWidth / 2, 0, 7);
+    const w = ctx.lineWidth;
+    if (w <= 3) { // snap tiny dabs to the pixel grid: one dab = full-alpha bins
+      ctx.fillRect(Math.round(pts[0].x - w / 2), Math.round(pts[0].y - w / 2), w, w);
+      return;
+    }
+    ctx.arc(pts[0].x, pts[0].y, w / 2, 0, 7);
     ctx.fill();
   } else {
     ctx.moveTo(pts[0].x, pts[0].y);
@@ -638,37 +653,87 @@ function drawPolyline(ctx, pts) {
     ctx.stroke();
   }
 }
+// The additive layer composes by per-pixel alpha MAX, not accumulation:
+// the exponential strength mapping would turn stacked 90%-alpha dabs
+// (0.9 -> 0.99 -> 0.999) into ~4x magnitude jumps per click. Max makes
+// repeated painting idempotent — you paint a target level, not a dose.
+let scratch = null;
+function scratchCtx() {
+  if (!scratch || scratch.width !== N) {
+    scratch = document.createElement('canvas');
+    scratch.width = scratch.height = N;
+  }
+  const c = scratch.getContext('2d', { willReadFrequently: true });
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalAlpha = 1;
+  c.globalCompositeOperation = 'source-over';
+  c.clearRect(0, 0, N, N);
+  return c;
+}
+function mergeMax(L, base) { // layer := base ⊕ scratch, higher alpha wins
+  const sd = scratch.getContext('2d').getImageData(0, 0, N, N).data;
+  const out = new ImageData(new Uint8ClampedArray(base.data), N, N);
+  const od = out.data;
+  for (let i = 0; i < od.length; i += 4)
+    if (sd[i + 3] > od[i + 3]) {
+      od[i] = sd[i]; od[i + 1] = sd[i + 1];
+      od[i + 2] = sd[i + 2]; od[i + 3] = sd[i + 3];
+    }
+  L.ctx.putImageData(out, 0, 0);
+}
+
 function paintStroke() {
   const surf = stroke.surf;
   for (const nm of stroke.names) {
     const L = surf.layers[nm];
-    L.ctx.putImageData(stroke.bases[nm], 0, 0);
-    L.ctx.save();
-    strokeStyleFor(surf, L.ctx);
-    drawPolyline(L.ctx, stroke.points);
-    if (surf.mirrored()) {
-      L.ctx.setTransform(-1, 0, 0, -1, N, N); // 180° about spectrum center
+    if (nm === 'add' && surf.tool !== 'restore') {
+      const sctx = scratchCtx();
+      sctx.save();
+      strokeStyleFor(surf, sctx);
+      drawPolyline(sctx, stroke.points);
+      if (surf.mirrored()) {
+        sctx.setTransform(-1, 0, 0, -1, N, N); // 180° about spectrum center
+        drawPolyline(sctx, stroke.points);
+      }
+      sctx.restore();
+      mergeMax(L, stroke.bases[nm]);
+    } else {
+      L.ctx.putImageData(stroke.bases[nm], 0, 0);
+      L.ctx.save();
+      strokeStyleFor(surf, L.ctx);
       drawPolyline(L.ctx, stroke.points);
+      if (surf.mirrored()) {
+        L.ctx.setTransform(-1, 0, 0, -1, N, N);
+        drawPolyline(L.ctx, stroke.points);
+      }
+      L.ctx.restore();
     }
-    L.ctx.restore();
     L.cache = null;
   }
   surf.onChange();
 }
 function stampAt(surf, p) { // text / emoji click-stamp
   const nm = surf.stampLayer(surf.tool);
-  snapshot(surf, [nm]);
+  const base = snapshot(surf, [nm]).imgs[nm];
   const L = surf.layers[nm], str = surf.tool === 'emoji' ? emojiChar : ($('textInput').value || '?');
-  L.ctx.save();
-  strokeStyleFor(surf, L.ctx);
-  L.ctx.font = `${Math.max(8, +$('sizeSl').value * 2)}px system-ui`;
-  L.ctx.textAlign = 'center'; L.ctx.textBaseline = 'middle';
-  L.ctx.fillText(str, p.x, p.y);
-  if (surf.mirrored()) {
-    L.ctx.setTransform(-1, 0, 0, -1, N, N);
-    L.ctx.fillText(str, p.x, p.y);
+  const draw = ctx => {
+    ctx.save();
+    strokeStyleFor(surf, ctx);
+    ctx.font = `${Math.max(8, +$('sizeSl').value * 2)}px system-ui`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(str, p.x, p.y);
+    if (surf.mirrored()) {
+      ctx.setTransform(-1, 0, 0, -1, N, N);
+      ctx.fillText(str, p.x, p.y);
+    }
+    ctx.restore();
+  };
+  if (nm === 'add') {
+    draw(scratchCtx());
+    mergeMax(L, base);
+  } else {
+    draw(L.ctx);
   }
-  L.ctx.restore();
   L.cache = null;
   surf.onChange();
 }
