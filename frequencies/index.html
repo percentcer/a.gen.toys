@@ -73,6 +73,11 @@
     padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
   .pop[hidden] { display: none; }
   #textPop { flex-direction: column; align-items: stretch; }
+  #filterPop { flex-direction: column; align-items: stretch; }
+  #filterPop button { display: flex; justify-content: space-between; gap: 14px;
+    text-align: left; }
+  #filterPop button small { color: var(--dim); font-size: 11px; align-self: center; }
+  #filterPop button.on small { color: inherit; }
   #swatchGrid { display: grid; grid-template-columns: repeat(8, 22px); gap: 5px; }
   .swatch { width: 22px; height: 22px; padding: 0; border-radius: 5px;
     border: 1px solid var(--edge); }
@@ -138,6 +143,7 @@
     <div class="toolrow" id="magTools">
       <button data-tool="attenuate" class="on">🧽 Attenuate</button>
       <button data-tool="boost">📢 Boost</button>
+      <button data-tool="filter" title="mask whole frequency ranges — pick a shape, then drag on the spectrum">🎛️ Filter</button>
       <button data-tool="stamp">🖌️ Draw</button>
       <button data-tool="text">🔤 Text</button>
       <button data-tool="emoji">😀 Emoji</button>
@@ -186,6 +192,28 @@
     <label class="ctl"><input type="checkbox" id="textAtten"> attenuate</label>
   </div>
 </div>
+<div id="filterPop" class="pop" hidden>
+  <button data-filter="lowpass" class="on"
+    title="Drag outward from the center. Keeps frequencies inside the radius and removes the rest; the image blurs. A sharp cutoff leaves ripples around edges — Gibbs ringing.">
+    🌫️ Keep lows <small>low-pass · blur</small></button>
+  <button data-filter="highpass"
+    title="Keeps frequencies outside the radius. Smooth shading vanishes; only edges and fine detail remain. Reach the very center to remove the image's average brightness.">
+    ✏️ Keep highs <small>high-pass · edges</small></button>
+  <button data-filter="bandkeep"
+    title="Press at one radius and drag to another. Keeps only the ring between them — detail at one scale.">
+    💍 Keep ring <small>band-pass</small></button>
+  <button data-filter="bandcut"
+    title="Removes the ring between press and release. The classic cure for periodic noise at a known frequency.">
+    ⛔ Cut ring <small>band-stop</small></button>
+  <button data-filter="anglekeep"
+    title="Drag from the center in some direction. Keeps waves of that orientation (and its mirror); the size slider sets the wedge's width.">
+    📐 Keep angle <small>orientation pass</small></button>
+  <button data-filter="anglecut"
+    title="Removes waves of one orientation — how scan lines and stripes are cleaned from photographs.">
+    ✂️ Cut angle <small>kills stripes</small></button>
+  <label class="ctl" title="fade the mask's boundary instead of cutting sharply; a soft low-pass blurs without ringing">
+    <input type="checkbox" id="softChk"> soft edge</label>
+</div>
 <div id="emojiPop" class="pop" hidden>
   <button class="emoji on" data-emo="😀">😀</button>
   <button class="emoji" data-emo="⭐">⭐</button>
@@ -228,10 +256,20 @@
       <tr><td>🌑 Darken</td><td>removes light</td></tr>
       <tr><td>🔤 Text / 😀 Emoji</td><td>stamps the text or emoji where you click</td></tr>
       <tr><td>🩹 Erase</td><td>brushes edits away, back to the original pixels</td></tr>
-      <tr><td rowspan="4">magnitude</td>
+      <tr><td rowspan="5">magnitude</td>
           <td>🧽 Attenuate</td><td>scales magnitudes toward zero — the outer ring blurs
-            the image, the center keeps only edges</td></tr>
+            the image, the center keeps only edges. Brushed over one bright
+            off-center spike (and its twin), it is a <b>notch filter</b>: it removes
+            a single periodic pattern</td></tr>
       <tr><td>📢 Boost</td><td>amplifies the frequencies already there</td></tr>
+      <tr><td>🎛️ Filter</td><td>masks whole frequency ranges; pick a shape from the
+            popover, then drag on the spectrum. <b>Keep lows</b> (low-pass) blurs;
+            <b>keep highs</b> (high-pass) leaves only edges. The ring filters keep
+            or cut the band between press and release; the angle filters keep or
+            cut waves of one orientation, with width from the size slider. A sharp
+            cutoff leaves ripples around edges — Gibbs ringing; check <b>soft
+            edge</b> to fade the boundary instead. Strength sets how deeply the
+            mask cuts</td></tr>
       <tr><td>🖌️ Draw / 🔤 Text / 😀 Emoji</td><td>adds frequency content in the
             tool's color; each painted bin becomes a sinusoidal grating in the
             image. Strength is <b>dB relative to what naturally lives at that
@@ -312,7 +350,7 @@ const surfaces = {
       ? (t === 'text' && $('textAtten').checked ? 'erase' : 'add')
       : (t === 'text' && $('textAtten').checked ? 'phMinus' : 'phPlus'),
     toolLayer: { attenuate: 'erase', boost: 'boost', stamp: 'add',
-                 phplus: 'phPlus', phminus: 'phMinus' },
+                 filter: 'erase', phplus: 'phPlus', phminus: 'phMinus' },
     // additive tools carry color (per-channel magnitude); the rest are alpha-only
     strokeColor: t => t === 'stamp' ? toolColors.draw :
                       t === 'text' ? toolColors.text : '#fff',
@@ -691,8 +729,65 @@ function mergeMax(L, base) { // layer := base ⊕ scratch, higher alpha wins
   L.ctx.putImageData(out, 0, 0);
 }
 
+// ---------- frequency-range filters ----------
+// A filter drag fills the erase layer with a gradient mask: white alpha says
+// how much of each frequency to remove. Radial shapes read the drag's radius
+// (band shapes use both endpoints); angle shapes read its direction. Every
+// mask is symmetric about the center, so conjugate symmetry holds by
+// construction and the mirror toggle has nothing to do.
+let filterShape = 'lowpass';
+function gradStops(g, stops) {
+  let t = 0;
+  for (const [off, o] of stops) {
+    t = Math.min(1, Math.max(t, off));
+    g.addColorStop(t, `rgba(255,255,255,${o})`);
+  }
+}
+function fillFilterMask(ctx, p0, p1) {
+  const c = N / 2, Rmax = c * Math.SQRT2; // reach the corners
+  const soft = $('softChk').checked;
+  let g;
+  if (filterShape === 'anglekeep' || filterShape === 'anglecut') {
+    const th = Math.atan2(p1.y - c, p1.x - c);
+    const f = Math.max(1, +$('sizeSl').value / 2) / 360; // half-width, in turns
+    const s = soft ? Math.min(f, .06) : .002;            // edge transition width
+    const inW = filterShape === 'anglecut' ? 1 : 0, out = 1 - inW;
+    g = ctx.createConicGradient(th, c, c);
+    gradStops(g, [[0, inW], [f, inW], [f + s, out],
+      [.5 - f - s, out], [.5 - f, inW], [.5 + f, inW], [.5 + f + s, out],
+      [1 - f - s, out], [1 - f, inW], [1, inW]]);
+  } else {
+    const r0 = Math.hypot(p0.x - c, p0.y - c), r1 = Math.hypot(p1.x - c, p1.y - c);
+    const lo = Math.min(r0, r1), hi = Math.max(r0, r1);
+    const w = r => soft ? Math.max(6, r * .35) : .75;    // edge transition, px
+    g = ctx.createRadialGradient(c, c, 0, c, c, Rmax);
+    gradStops(g, {
+      lowpass:  [[(r1 - w(r1)) / Rmax, 0], [(r1 + w(r1)) / Rmax, 1]],
+      highpass: [[(r1 - w(r1)) / Rmax, 1], [(r1 + w(r1)) / Rmax, 0]],
+      bandkeep: [[(lo - w(lo)) / Rmax, 1], [(lo + w(lo)) / Rmax, 0],
+                 [(hi - w(hi)) / Rmax, 0], [(hi + w(hi)) / Rmax, 1]],
+      bandcut:  [[(lo - w(lo)) / Rmax, 0], [(lo + w(lo)) / Rmax, 1],
+                 [(hi - w(hi)) / Rmax, 1], [(hi + w(hi)) / Rmax, 0]],
+    }[filterShape]);
+  }
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = +$('strengthSl').value;
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, N, N);
+  ctx.restore();
+}
+
 function paintStroke() {
   const surf = stroke.surf;
+  if (surf.tool === 'filter') {
+    const L = surf.layers.erase;
+    L.ctx.putImageData(stroke.bases.erase, 0, 0);
+    fillFilterMask(L.ctx, stroke.points[0], stroke.points[stroke.points.length - 1]);
+    L.cache = null;
+    surf.onChange();
+    return;
+  }
   for (const nm of stroke.names) {
     const L = surf.layers[nm];
     if (nm === 'add' && surf.tool !== 'restore') {
@@ -750,9 +845,25 @@ function stampAt(surf, p) { // text / emoji click-stamp
 function drawCursor(surf, p) {
   const ov = surf.overlay.getContext('2d');
   ov.clearRect(0, 0, N, N);
+  ov.lineWidth = 1;
+  if (surf.tool === 'filter') { // aiming guide: radius circle or angle line
+    const c = N / 2;
+    ov.strokeStyle = 'rgba(255,255,255,.7)';
+    ov.setLineDash([4, 4]);
+    ov.beginPath();
+    if (filterShape === 'anglekeep' || filterShape === 'anglecut') {
+      const th = Math.atan2(p.y - c, p.x - c);
+      ov.moveTo(c - N * Math.cos(th), c - N * Math.sin(th));
+      ov.lineTo(c + N * Math.cos(th), c + N * Math.sin(th));
+    } else {
+      ov.arc(c, c, Math.hypot(p.x - c, p.y - c), 0, 7);
+    }
+    ov.stroke();
+    ov.setLineDash([]);
+    return;
+  }
   const r = Math.max(+$('sizeSl').value / 2, 1.5);
   ov.strokeStyle = 'rgba(255,255,255,.9)';
-  ov.lineWidth = 1;
   ov.beginPath(); ov.arc(p.x, p.y, r, 0, 7); ov.stroke();
   if (surf.mirrored()) {
     ov.strokeStyle = 'rgba(94,177,255,.7)';
@@ -810,6 +921,15 @@ wireTools(surfaces.spat, 'spatTools');
 wireTools(surfaces.spec, 'magTools');
 wireTools(surfaces.spec, 'phTools');
 
+document.querySelectorAll('#filterPop button[data-filter]').forEach(btn => {
+  btn.onclick = () => {
+    filterShape = btn.dataset.filter;
+    document.querySelectorAll('#filterPop button[data-filter]').forEach(b =>
+      b.classList.toggle('on', b === btn));
+    if (popAnchor) popAnchor.click(); // arm the tool the popover came from
+  };
+});
+
 document.querySelectorAll('button.emoji').forEach(btn => {
   btn.onclick = () => {
     emojiChar = btn.dataset.emo;
@@ -847,7 +967,8 @@ for (const col of SWATCH) {
   swatchGrid.appendChild(b);
 }
 $('colorPop').appendChild(swatchGrid);
-const pops = { draw: $('colorPop'), text: $('textPop'), emoji: $('emojiPop') };
+const pops = { draw: $('colorPop'), text: $('textPop'), emoji: $('emojiPop'),
+               filter: $('filterPop') };
 let popTimer = null, popAnchor = null;
 function showPop(kind, btn) {
   clearTimeout(popTimer);
@@ -867,7 +988,7 @@ function hidePopsSoon() {
   clearTimeout(popTimer);
   popTimer = setTimeout(hidePops, 250);
 }
-document.querySelectorAll('button[data-tool=draw], button[data-tool=stamp], button[data-tool=text], button[data-tool=emoji]').forEach(btn => {
+document.querySelectorAll('button[data-tool=draw], button[data-tool=stamp], button[data-tool=text], button[data-tool=emoji], button[data-tool=filter]').forEach(btn => {
   const kind = btn.dataset.tool === 'stamp' ? 'draw' : btn.dataset.tool;
   btn.addEventListener('mouseenter', () => showPop(kind, btn));
   btn.addEventListener('click', () => showPop(kind, btn)); // touch
@@ -878,7 +999,7 @@ for (const pop of Object.values(pops)) {
   pop.addEventListener('mouseleave', hidePopsSoon);
 }
 document.addEventListener('pointerdown', ev => {
-  if (!ev.target.closest('.pop, button[data-tool=draw], button[data-tool=stamp], button[data-tool=text], button[data-tool=emoji]'))
+  if (!ev.target.closest('.pop, button[data-tool=draw], button[data-tool=stamp], button[data-tool=text], button[data-tool=emoji], button[data-tool=filter]'))
     hidePops();
 });
 $('textInput').addEventListener('input', () => { if (popAnchor) popAnchor.click(); });
