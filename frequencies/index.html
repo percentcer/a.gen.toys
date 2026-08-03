@@ -1086,7 +1086,12 @@ $('testBtn').onclick = () => {
   a.textContent = 'test: ' + t.name;
   a.removeAttribute('href');
 };
-$('fileInput').onchange = ev => { if (ev.target.files[0]) loadImage(ev.target.files[0]); };
+$('fileInput').onchange = ev => {
+  if (!ev.target.files[0]) return;
+  // an opened file is usually a real photo — give it the full resolution
+  if ($('resSel').value !== '512') { $('resSel').value = '512'; $('resSel').onchange(); }
+  loadImage(ev.target.files[0]);
+};
 $('saveBtn').onclick = () => {
   const a = document.createElement('a');
   a.download = 'frequencies-result.png';
