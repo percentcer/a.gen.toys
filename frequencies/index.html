@@ -306,7 +306,8 @@
             cut waves of one orientation, with width from the size slider. A sharp
             cutoff leaves ripples around edges — Gibbs ringing; check <b>soft
             edge</b> to fade the boundary instead. Strength sets how deeply the
-            mask cuts</td></tr>
+            mask cuts. The angle filters spare the center bin — the image's
+            average brightness, which has no orientation</td></tr>
       <tr><td><svg class="icon inl"><use href="#i-brush"/></svg> Draw / <svg class="icon inl"><use href="#i-text"/></svg> Text / <svg class="icon inl"><use href="#i-smiley"/></svg> Emoji</td><td>adds frequency content in the
             tool's color; each painted bin becomes a sinusoidal grating in the
             image. Strength is <b>dB relative to what naturally lives at that
@@ -810,8 +811,19 @@ function fillFilterMask(ctx, p0, p1) {
   ctx.save();
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = +$('strengthSl').value;
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, N, N);
+  if (filterShape === 'anglekeep' || filterShape === 'anglecut') {
+    // Every wedge contains its own apex, so an angle mask would always hit
+    // the DC bin at (N/2, N/2) — the image's average brightness, which has
+    // no orientation. Punch it out so angle filters never touch it.
+    const sctx = scratchCtx();
+    sctx.fillStyle = g;
+    sctx.fillRect(0, 0, N, N);
+    sctx.clearRect(c, c, 1, 1);
+    ctx.drawImage(scratch, 0, 0);
+  } else {
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, N, N);
+  }
   ctx.restore();
 }
 
