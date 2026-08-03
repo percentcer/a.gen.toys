@@ -92,7 +92,6 @@
   <input type="file" id="fileInput" accept="image/*" hidden>
   <button id="saveBtn">💾 Save result</button>
   <button id="undoBtn">↩ Undo</button>
-  <button id="resetBtn">🧹 Clear edits</button>
   <label class="ctl">size
     <select id="resSel">
       <option value="128">128²</option>
@@ -119,7 +118,9 @@
       <button data-tool="darken">🌑 Darken</button>
       <button data-tool="text">🔤 Text</button>
       <button data-tool="emoji">😀 Emoji</button>
-      <button data-tool="restore" class="hot">🩹 Restore</button>
+      <button data-tool="restore" class="hot">🩹 Erase</button>
+      <span class="gap"></span>
+      <button data-clear="spat">🧹 Clear edits</button>
     </div>
   </div>
 
@@ -140,14 +141,18 @@
       <button data-tool="stamp">🖌️ Draw</button>
       <button data-tool="text">🔤 Text</button>
       <button data-tool="emoji">😀 Emoji</button>
-      <button data-tool="restore" class="hot">🩹 Restore</button>
+      <button data-tool="restore" class="hot">🩹 Erase</button>
+      <span class="gap"></span>
+      <button data-clear="spec">🧹 Clear edits</button>
     </div>
     <div class="toolrow" id="phTools" style="display:none">
       <button data-tool="phplus" class="on">🌀 Shift +</button>
       <button data-tool="phminus">🌀 Shift −</button>
       <button data-tool="text">🔤 Text</button>
       <button data-tool="emoji">😀 Emoji</button>
-      <button data-tool="restore" class="hot">🩹 Restore</button>
+      <button data-tool="restore" class="hot">🩹 Erase</button>
+      <span class="gap"></span>
+      <button data-clear="spec">🧹 Clear edits</button>
     </div>
     <div class="toolrow">
       <label class="ctl">size <input type="range" id="sizeSl" min="1" max="80" value="10"></label>
@@ -222,7 +227,7 @@
       <tr><td>☀️ Brighten</td><td>adds light</td></tr>
       <tr><td>🌑 Darken</td><td>removes light</td></tr>
       <tr><td>🔤 Text / 😀 Emoji</td><td>stamps the text or emoji where you click</td></tr>
-      <tr><td>🩹 Restore</td><td>brushes edits away, back to the original pixels</td></tr>
+      <tr><td>🩹 Erase</td><td>brushes edits away, back to the original pixels</td></tr>
       <tr><td rowspan="4">magnitude</td>
           <td>🧽 Attenuate</td><td>scales magnitudes toward zero — the outer ring blurs
             the image, the center keeps only edges</td></tr>
@@ -233,11 +238,11 @@
             frequency</b>: 0 dB blends in, + stands out, − hides. The text
             popover's <b>attenuate</b> option removes the color's channels
             instead</td></tr>
-      <tr><td>🩹 Restore</td><td>reverts painted bins</td></tr>
+      <tr><td>🩹 Erase</td><td>reverts painted bins</td></tr>
       <tr><td rowspan="2">phase</td>
           <td>🌀 Shift + / −</td><td>rotates the phase of the frequencies you paint,
             which smears structure while the magnitude view barely changes</td></tr>
-      <tr><td>🩹 Restore</td><td>reverts painted bins</td></tr>
+      <tr><td>🩹 Erase</td><td>reverts painted bins</td></tr>
     </table>
     <p><b>size</b> and <b>strength</b> apply to every tool; for additive spectrum
     painting the strength readout switches to dB. <b>Undo</b> is Ctrl+Z.
@@ -930,12 +935,13 @@ document.addEventListener('keydown', ev => {
       !/^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName))
     toggleInfo();
 });
-$('resetBtn').onclick = () => {
-  for (const surf of Object.values(surfaces)) {
+document.querySelectorAll('button[data-clear]').forEach(btn => {
+  btn.onclick = () => {
+    const surf = surfaces[btn.dataset.clear];
     snapshot(surf, surf.layerNames);
     clearSurface(surf);
-  }
-};
+  };
+});
 $('resSel').onchange = () => {
   const olds = new Map(Object.values(surfaces).map(s => [s, s.layers]));
   setSize(+$('resSel').value);
