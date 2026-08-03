@@ -799,14 +799,31 @@ function fillFilterMask(ctx, p0, p1) {
     const lo = Math.min(r0, r1), hi = Math.max(r0, r1);
     const w = r => soft ? Math.max(6, r * .35) : .75;    // edge transition, px
     g = ctx.createRadialGradient(c, c, 0, c, c, Rmax);
-    gradStops(g, {
-      lowpass:  [[(r1 - w(r1)) / Rmax, 0], [(r1 + w(r1)) / Rmax, 1]],
-      highpass: [[(r1 - w(r1)) / Rmax, 1], [(r1 + w(r1)) / Rmax, 0]],
-      bandkeep: [[(lo - w(lo)) / Rmax, 1], [(lo + w(lo)) / Rmax, 0],
-                 [(hi - w(hi)) / Rmax, 0], [(hi + w(hi)) / Rmax, 1]],
-      bandcut:  [[(lo - w(lo)) / Rmax, 0], [(lo + w(lo)) / Rmax, 1],
-                 [(hi - w(hi)) / Rmax, 1], [(hi + w(hi)) / Rmax, 0]],
-    }[filterShape]);
+    if (filterShape === 'bandkeep' || filterShape === 'bandcut') {
+      // The dragged radii bound the ring exactly, sharp or soft; soft edge
+      // smoothsteps the mask within the erased side of each boundary, so
+      // frequencies outside the mask are never touched.
+      const wb = soft ? Math.max(3, Math.min((hi - lo) / 2, (lo + hi) * .175)) : .75;
+      const ease = x => x * x * (3 - 2 * x); // smoothstep
+      const st = [];
+      const ramp = (a, b, from, to) => {
+        for (let i = 0; i <= 4; i++)
+          st.push([(a + (b - a) * i / 4) / Rmax, from + (to - from) * ease(i / 4)]);
+      };
+      if (filterShape === 'bandcut') {
+        ramp(lo, lo + wb, 0, 1);          // ramps live inside the cut ring
+        ramp(hi - wb, hi, 1, 0);
+      } else {
+        ramp(Math.max(0, lo - wb), lo, 1, 0); // ramps live outside the kept ring
+        ramp(hi, hi + wb, 0, 1);
+      }
+      gradStops(g, st);
+    } else {
+      gradStops(g, {
+        lowpass:  [[(r1 - w(r1)) / Rmax, 0], [(r1 + w(r1)) / Rmax, 1]],
+        highpass: [[(r1 - w(r1)) / Rmax, 1], [(r1 + w(r1)) / Rmax, 0]],
+      }[filterShape]);
+    }
   }
   ctx.save();
   ctx.globalCompositeOperation = 'source-over';
