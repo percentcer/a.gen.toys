@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>nim</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔺</text></svg>">
+    <style>
+        :root {
+            --cyan: #00ffe0;
+            --magenta: #ff00a0;
+            --violet: #8040ff;
+            --ink: #cfe8ff;
+            --dim: #6a7aa8;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #04040c;
+            font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+        }
+
+        canvas { position: fixed; inset: 0; display: block; }
+
+        #boot {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--dim);
+            letter-spacing: .15em;
+            z-index: 5;
+        }
+
+        #vig {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 2;
+            transition: box-shadow .5s ease;
+        }
+
+        #vig.idle { box-shadow: inset 0 0 130px rgba(128, 64, 255, .16); }
+        #vig.me   { box-shadow: inset 0 0 160px rgba(0, 255, 224, .27); }
+        #vig.them { box-shadow: inset 0 0 160px rgba(255, 0, 160, .20); }
+        #vig.over { box-shadow: inset 0 0 180px rgba(255, 255, 255, .13); }
+
+        #hud { position: fixed; inset: 0; pointer-events: none; z-index: 3; }
+
+        #tl {
+            position: absolute;
+            top: 14px;
+            left: 16px;
+            display: flex;
+            align-items: baseline;
+            gap: 16px;
+        }
+
+        #brand {
+            color: #fff;
+            font-weight: bold;
+            font-size: 20px;
+            letter-spacing: .4em;
+            text-shadow: 0 0 10px var(--cyan), 0 0 30px var(--cyan);
+        }
+
+        #status {
+            color: var(--ink);
+            font-size: 13px;
+            letter-spacing: .08em;
+            text-shadow: 0 0 8px rgba(0, 200, 255, .5);
+        }
+
+        #tr {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+            display: flex;
+            gap: 8px;
+        }
+
+        button {
+            pointer-events: auto;
+            font: inherit;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: .12em;
+            color: var(--cyan);
+            background: rgba(2, 8, 20, .6);
+            border: 1px solid var(--cyan);
+            border-radius: 0;
+            padding: 7px 14px;
+            cursor: pointer;
+            text-shadow: 0 0 8px var(--cyan);
+        }
+
+        button:hover { box-shadow: 0 0 14px rgba(0, 255, 224, .5), inset 0 0 10px rgba(0, 255, 224, .15); }
+
+        #linkBtn.pulse { animation: pulse 1.6s infinite; }
+
+        @keyframes pulse {
+            50% { box-shadow: 0 0 18px rgba(0, 255, 224, .8), inset 0 0 12px rgba(0, 255, 224, .25); }
+        }
+
+        #linkBox {
+            pointer-events: auto;
+            position: absolute;
+            top: 52px;
+            right: 16px;
+            width: min(480px, 80vw);
+            font: inherit;
+            font-size: 11px;
+            color: var(--ink);
+            background: rgba(2, 8, 20, .85);
+            border: 1px solid var(--dim);
+            padding: 6px 8px;
+            display: none;
+        }
+
+        #center {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 22px;
+        }
+
+        #flash {
+            color: #fff;
+            font-size: clamp(26px, 5.5vw, 58px);
+            font-weight: bold;
+            letter-spacing: .25em;
+            text-align: center;
+            text-shadow: 0 0 12px #fff, 0 0 40px var(--cyan), 0 0 80px var(--magenta);
+            display: none;
+        }
+
+        #flash.show { display: block; animation: pop .35s ease-out; }
+
+        @keyframes pop {
+            0% { transform: scale(.4); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        #rematchBtn, #retryBtn { display: none; font-size: 15px; padding: 12px 26px; }
+    </style>
+</head>
+
+<body>
+    <div id="boot">loading…</div>
+    <div id="vig" class="idle"></div>
+    <div id="hud">
+        <div id="tl"><span id="brand">NIM</span><span id="status">booting…</span></div>
+        <div id="tr">
+            <button id="linkBtn" class="pulse">copy invite link</button>
+            <button id="muteBtn">sound off</button>
+        </div>
+        <input id="linkBox" readonly>
+        <div id="center">
+            <div id="flash"></div>
+            <button id="rematchBtn">rematch</button>
+            <button id="retryBtn">retry connection</button>
+        </div>
+    </div>
+
+    <script>
+        // if the module script never boots (no internet / CDN down), say so
+        setTimeout(function () {
+            if (!document.body.dataset.booted)
+                document.getElementById('boot').textContent = 'this toy needs internet — could not reach the cdn';
+        }, 7000);
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js" defer></script>
+    <script type="importmap">
+    { "imports": {
+        "three":         "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+    } }
+    </script>
+
+    <script type="module">
+        'use strict';
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+        // ---------- config ----------
+
+        const ROWS = [1, 3, 5, 7];              // misère nim: taker of the LAST piece LOSES
+        const SOLIDS = [
+            { make: () => new THREE.IcosahedronGeometry(0.85), color: 0x00ffe0 },
+            { make: () => new THREE.DodecahedronGeometry(0.85), color: 0xff00a0 },
+            { make: () => new THREE.OctahedronGeometry(0.95), color: 0xcc80ff },
+            { make: () => new THREE.TetrahedronGeometry(1.05), color: 0x40ff60 },
+        ];
+        const LAYOUT = { rowY: r => 4.6 - 3.0 * r, dx: 2.2, camZ: 15 };
+        const GRID = { nx: 64, ny: 36, x0: -21, x1: 21, y0: -12, y1: 12, z: -5, kHome: 0.06, kN: 0.12, damp: 0.93 };
+        const NET = { version: 1 };
+        const AUDIO = {
+            bpm: 126, lookahead: 0.12, tick: 25,
+            bassPat: [0, null, 0, 12, 3, null, 10, null, 0, 12, null, 15, null, 3, null, -2],
+            bassAccents: [0, 4, 10],
+            chords: [[110, 130.81, 164.81], [87.31, 110, 130.81]],   // Am, F
+        };
+
+        const $ = id => document.getElementById(id);
+
+        // ---------- hud ----------
+
+        const statusEl = $('status'), vigEl = $('vig'), flashEl = $('flash');
+        const linkBtn = $('linkBtn'), muteBtn = $('muteBtn'), linkBox = $('linkBox');
+        const rematchBtn = $('rematchBtn'), retryBtn = $('retryBtn');
+        let flashTimer = 0;
+
+        function flash(text, sticky) {
+            clearTimeout(flashTimer);
+            flashEl.textContent = text;
+            flashEl.classList.remove('show');
+            void flashEl.offsetWidth;             // restart the pop animation
+            flashEl.classList.add('show');
+            if (!sticky) flashTimer = setTimeout(() => flashEl.classList.remove('show'), 1500);
+        }
+
+        function updateHud() {
+            let text = '', vig = 'idle';
+            if (state === 'waiting') text = 'waiting for opponent — send the invite link';
+            else if (state === 'joining') text = 'connecting to host…';
+            else if (state === 'playing') {
+                if (myTurn) { text = 'your move — whoever takes the last piece loses'; vig = 'me'; }
+                else { text = "opponent's move"; vig = 'them'; }
+            }
+            else if (state === 'gameover') { text = 'click rematch to play again'; vig = 'over'; }
+            else if (state === 'desync') text = 'protocol error — reload to play again';
+            statusEl.textContent = text;
+            vigEl.className = vig;
+            rematchBtn.style.display = state === 'gameover' ? '' : 'none';
+        }
+
+        linkBtn.addEventListener('click', () => {
+            if (!link) return;
+            const copied = () => {
+                linkBtn.textContent = 'copied';
+                setTimeout(() => { linkBtn.textContent = 'copy invite link'; }, 1500);
+            };
+            const fallback = () => {
+                // no clipboard api (e.g. chrome on file://) — select in a visible box
+                // and try the legacy copy command; leave the box up for manual copy
+                linkBox.style.display = 'block';
+                linkBox.value = link;
+                linkBox.focus();
+                linkBox.select();
+                let ok = false;
+                try { ok = document.execCommand('copy'); } catch (e) { }
+                if (ok) { linkBox.style.display = 'none'; copied(); }
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText)
+                navigator.clipboard.writeText(link).then(copied).catch(fallback);
+            else fallback();
+        });
+
+        // ---------- audio: engine ----------
+
+        let actx = null, master, comp, duck, sfxGain, noiseBuf, muted = false;
+        let stepIdx = 0, barIdx = 0, nextNoteTime = 0;
+        const spb16 = 60 / AUDIO.bpm / 4;
+
+        function initAudio() {
+            if (actx) { if (actx.state === 'suspended') actx.resume(); return; }
+            actx = new AudioContext();
+            comp = actx.createDynamicsCompressor();
+            comp.connect(actx.destination);
+            master = actx.createGain();
+            master.gain.value = muted ? 0 : 0.8;
+            master.connect(comp);
+            duck = actx.createGain();
+            duck.connect(master);
+            sfxGain = actx.createGain();
+            sfxGain.gain.value = 0.5;
+            sfxGain.connect(master);
+            noiseBuf = actx.createBuffer(1, actx.sampleRate, actx.sampleRate);
+            const d = noiseBuf.getChannelData(0);
+            for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+            nextNoteTime = actx.currentTime + 0.1;
+            setInterval(schedule, AUDIO.tick);
+        }
+
+        function musicTier() {
+            if (state === 'playing') {
+                const left = board.reduce((a, b) => a + b, 0);
+                return left <= 4 ? 3 : left <= 8 ? 2 : left <= 12 ? 1 : 0;
+            }
+            if (state === 'gameover') return 1;
+            return 0;
+        }
+
+        function schedule() {
+            while (nextNoteTime < actx.currentTime + AUDIO.lookahead) {
+                scheduleStep(stepIdx, nextNoteTime, musicTier());
+                nextNoteTime += spb16;
+                stepIdx = (stepIdx + 1) % 16;
+                if (stepIdx === 0) barIdx++;
+            }
+        }
+
+        function scheduleStep(step, t, tier) {
+            if (step % 4 === 0) kick(t);
+            const offbeat = step % 4 === 2;
+            if (tier >= 2) { hat(t, offbeat ? 0.13 : 0.05, 0.05); if (offbeat) hat(t, 0.11, 0.16); }
+            else if (offbeat) hat(t, 0.12, 0.05);
+            if (tier >= 1) {
+                const n = AUDIO.bassPat[step];
+                if (n !== null) bass(t, 55 * Math.pow(2, n / 12), AUDIO.bassAccents.includes(step));
+            }
+            if (tier >= 3 && step === 0 && barIdx % 2 === 0) pad(t, AUDIO.chords[(barIdx >> 1) % 2]);
+        }
+
+        function kick(t) {
+            const o = actx.createOscillator(), g = actx.createGain();
+            o.frequency.setValueAtTime(150, t);
+            o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+            g.gain.setValueAtTime(0.85, t);
+            g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+            o.connect(g).connect(master);
+            o.start(t); o.stop(t + 0.3);
+            duck.gain.cancelScheduledValues(t);
+            duck.gain.setValueAtTime(1, t);
+            duck.gain.linearRampToValueAtTime(0.35, t + 0.02);
+            duck.gain.linearRampToValueAtTime(1, t + 0.35);
+        }
+
+        function hat(t, vol, dur) {
+            const s = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
+            s.buffer = noiseBuf;
+            f.type = 'highpass'; f.frequency.value = 8000;
+            g.gain.setValueAtTime(vol, t);
+            g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+            s.connect(f).connect(g).connect(duck);
+            s.start(t); s.stop(t + dur + 0.02);
+        }
+
+        function bass(t, freq, accent) {
+            const o = actx.createOscillator(), f = actx.createBiquadFilter(), g = actx.createGain();
+            o.type = 'sawtooth'; o.frequency.value = freq;
+            f.type = 'lowpass'; f.Q.value = 12;
+            f.frequency.setValueAtTime(accent ? 2600 : 1200, t);
+            f.frequency.exponentialRampToValueAtTime(200, t + spb16 * 0.95);
+            g.gain.setValueAtTime(0, t);
+            g.gain.linearRampToValueAtTime(accent ? 0.3 : 0.22, t + 0.005);
+            g.gain.setValueAtTime(accent ? 0.3 : 0.22, t + spb16 * 0.7);
+            g.gain.linearRampToValueAtTime(0, t + spb16 * 0.95);
+            o.connect(f).connect(g).connect(duck);
+            o.start(t); o.stop(t + spb16);
+        }
+
+        function pad(t, chord) {
+            const dur = spb16 * 32;
+            const f = actx.createBiquadFilter(), g = actx.createGain();
+            f.type = 'lowpass'; f.frequency.value = 900; f.Q.value = 2;
+            g.gain.setValueAtTime(0, t);
+            g.gain.linearRampToValueAtTime(0.09, t + dur * 0.2);
+            g.gain.linearRampToValueAtTime(0, t + dur);
+            f.connect(g).connect(duck);
+            for (const freq of chord) for (const det of [-6, 6]) {
+                const o = actx.createOscillator();
+                o.type = 'sawtooth'; o.frequency.value = freq; o.detune.value = det;
+                o.connect(f);
+                o.start(t); o.stop(t + dur);
+            }
+        }
+
+        // ---------- audio: sfx ----------
+
+        function blip(freq0, freq1, dur, vol, type, at) {
+            if (!actx) return;
+            const t = at !== undefined ? at : actx.currentTime;
+            const o = actx.createOscillator(), g = actx.createGain();
+            o.type = type || 'square';
+            o.frequency.setValueAtTime(freq0, t);
+            if (freq1 !== freq0) o.frequency.exponentialRampToValueAtTime(freq1, t + dur);
+            g.gain.setValueAtTime(vol, t);
+            g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+            o.connect(g).connect(sfxGain);
+            o.start(t); o.stop(t + dur + 0.02);
+        }
+
+        const hoverSfx = () => blip(900, 1400, 0.04, 0.1, 'square');
+        const zapSfx = () => blip(800, 180, 0.12, 0.25, 'sawtooth');
+
+        function explodeSfx() {
+            if (!actx) return;
+            const t = actx.currentTime;
+            const s = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
+            s.buffer = noiseBuf;
+            f.type = 'lowpass'; f.Q.value = 1;
+            f.frequency.setValueAtTime(3200, t);
+            f.frequency.exponentialRampToValueAtTime(120, t + 0.3);
+            g.gain.setValueAtTime(0.5, t);
+            g.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+            s.connect(f).connect(g).connect(sfxGain);
+            s.start(t); s.stop(t + 0.35);
+            blip(110, 30, 0.35, 0.6, 'sine', t);
+        }
+
+        function winSfx() {
+            if (!actx) return;
+            [220, 330, 440, 660].forEach((f, i) => blip(f, f, 0.22, 0.25, 'square', actx.currentTime + i * 0.13));
+        }
+
+        function loseSfx() {
+            if (!actx) return;
+            const t = actx.currentTime;
+            for (const det of [0, 12]) {
+                const o = actx.createOscillator(), g = actx.createGain();
+                o.type = 'sawtooth';
+                o.frequency.setValueAtTime(220, t);
+                o.frequency.exponentialRampToValueAtTime(55, t + 0.8);
+                o.detune.value = det;
+                g.gain.setValueAtTime(0.18, t);
+                g.gain.exponentialRampToValueAtTime(0.001, t + 0.85);
+                o.connect(g).connect(sfxGain);
+                o.start(t); o.stop(t + 0.9);
+            }
+        }
+
+        muteBtn.addEventListener('click', () => {
+            muted = !muted;
+            muteBtn.textContent = muted ? 'sound on' : 'sound off';
+            if (master) master.gain.value = muted ? 0 : 0.8;
+        });
+
+        document.addEventListener('pointerdown', initAudio);
+
+        // ---------- game state ----------
+
+        let state = 'boot';                     // boot | waiting | joining | playing | gameover | desync
+        let board = ROWS.slice();
+        let myTurn = false, movesApplied = 0, gameNum = 0, game0First = 'host';
+
+        const firstOf = n => n % 2 === 0 ? game0First : (game0First === 'host' ? 'guest' : 'host');
+
+        function startGame(n) {
+            gameNum = n;
+            movesApplied = 0;
+            resetBoard();
+            state = 'playing';
+            myTurn = firstOf(n) === role;
+            hover = null;
+            flash(myTurn ? 'YOU MOVE FIRST' : 'OPPONENT MOVES FIRST');
+            updateHud();
+        }
+
+        function applyMove(row, take, mine) {
+            const from = board[row] - take;
+            for (let i = from; i < board[row]; i++) {
+                const p = pieces[row][i];
+                setTimeout(() => { if (!p.group.visible) return; killPiece(p); }, (i - from) * 60);
+            }
+            board[row] -= take;
+            movesApplied++;
+            hover = null;
+            if (board.reduce((a, b) => a + b, 0) === 0) gameOver(mine ? 'lose' : 'win');
+            else { myTurn = !mine; updateHud(); }
+        }
+
+        function gameOver(result) {
+            state = 'gameover';
+            myTurn = false;
+            updateHud();
+            if (result === 'win') {
+                flash('YOU WIN — THEY TOOK THE LAST PIECE', true);
+                winSfx();
+                for (let i = 0; i < 6; i++) setTimeout(() => explode(
+                    (Math.random() - 0.5) * 16, (Math.random() - 0.5) * 10,
+                    new THREE.Color(SOLIDS[i % 4].color)), 250 + i * 140);
+            } else {
+                flash('YOU LOSE — YOU TOOK THE LAST PIECE', true);
+                loseSfx();
+            }
+        }
+
+        rematchBtn.addEventListener('click', () => {
+            if (state !== 'gameover' || !conn) return;
+            send({ t: 'rematch', game: gameNum + 1 });
+            flashEl.classList.remove('show');
+            startGame(gameNum + 1);
+        });
+
+        // ---------- net ----------
+
+        let peer = null, conn = null, role = 'host', link = '', hostId = '';
+
+        function initPeer() {
+            if (typeof Peer === 'undefined') { statusEl.textContent = 'peerjs failed to load — check internet and reload'; return; }
+            peer = new Peer();
+            peer.on('open', id => {
+                link = location.href.split('#')[0] + '#' + id;
+                linkBox.value = link;
+                if (role === 'guest') join();
+                else { state = 'waiting'; updateHud(); }
+            });
+            peer.on('connection', c => acceptConn(c));
+            peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) { } });
+            peer.on('error', onPeerError);
+        }
+
+        function wireConn(c) {
+            c.on('data', onData);
+            c.on('close', handleDisconnect);
+            c.on('error', handleDisconnect);
+        }
+
+        function join() {
+            state = 'joining';
+            updateHud();
+            conn = peer.connect(hostId, { reliable: true, serialization: 'json' });
+            wireConn(conn);
+            conn.on('open', () => send({ t: 'hello', v: NET.version }));
+        }
+
+        function acceptConn(c) {
+            if (conn) {
+                c.on('open', () => { try { c.send({ t: 'err', code: 'full' }); } catch (e) { } setTimeout(() => c.close(), 200); });
+                return;
+            }
+            role = 'host';
+            conn = c;
+            wireConn(c);
+        }
+
+        function send(msg) { try { conn.send(msg); } catch (e) { } }
+
+        function onData(msg) {
+            if (!msg || typeof msg !== 'object') return;
+            switch (msg.t) {
+                case 'hello':
+                    if (role !== 'host') break;
+                    if (msg.v !== NET.version) { send({ t: 'err', code: 'version' }); fail('version mismatch — both players need the latest page'); break; }
+                    send({ t: 'hello', v: NET.version });
+                    game0First = Math.random() < 0.5 ? 'host' : 'guest';
+                    send({ t: 'start', game: 0, first: game0First });
+                    startGame(0);
+                    break;
+                case 'start':
+                    if (role !== 'guest') break;
+                    game0First = msg.first === 'host' ? 'host' : 'guest';
+                    startGame(0);
+                    break;
+                case 'move': {
+                    const ok = state === 'playing' && !myTurn &&
+                        msg.game === gameNum && msg.seq === movesApplied &&
+                        Number.isInteger(msg.row) && msg.row >= 0 && msg.row < ROWS.length &&
+                        Number.isInteger(msg.take) && msg.take >= 1 && msg.take <= board[msg.row];
+                    if (!ok) { send({ t: 'err', code: 'badmove' }); fail(); break; }
+                    zapSfx();
+                    applyMove(msg.row, msg.take, false);
+                    break;
+                }
+                case 'rematch':
+                    if (state === 'gameover' && msg.game === gameNum + 1) { flashEl.classList.remove('show'); startGame(msg.game); }
+                    // a rematch for the game already running = simultaneous click; ignore
+                    break;
+                case 'bye':
+                    handleDisconnect();
+                    break;
+                case 'err':
+                    if (msg.code === 'full') fail('that game already has two players');
+                    else if (msg.code === 'version') fail('version mismatch — both players need the latest page');
+                    else fail();
+                    break;
+            }
+        }
+
+        function fail(text) {
+            state = 'desync';
+            updateHud();
+            if (text) statusEl.textContent = text;
+            if (conn) { const c = conn; conn = null; try { c.close(); } catch (e) { } }
+        }
+
+        function handleDisconnect() {
+            if (!conn || state === 'desync') return;
+            conn = null;
+            flashEl.classList.remove('show');
+            if (role === 'host') {
+                resetBoard();
+                state = 'waiting';
+                updateHud();
+                statusEl.textContent = 'opponent left — same invite link still works';
+            } else {
+                // become a host with a fresh identity
+                try { peer.destroy(); } catch (e) { }
+                role = 'host';
+                resetBoard();
+                state = 'boot';
+                statusEl.textContent = 'opponent left — getting you a new invite link…';
+                initPeer();
+            }
+        }
+
+        function onPeerError(e) {
+            const type = e && e.type;
+            if (role === 'guest' && type === 'peer-unavailable') {
+                role = 'host';
+                if (peer.id) {
+                    link = location.href.split('#')[0] + '#' + peer.id;
+                    linkBox.value = link;
+                    state = 'waiting';
+                    updateHud();
+                    statusEl.textContent = "host not found — you're hosting now; send your own invite link";
+                }
+                return;
+            }
+            statusEl.textContent = 'connection error (' + (type || 'unknown') + ')';
+            retryBtn.style.display = '';
+        }
+
+        retryBtn.addEventListener('click', () => {
+            retryBtn.style.display = 'none';
+            statusEl.textContent = 'reconnecting…';
+            if (peer) try { peer.destroy(); } catch (e) { }
+            conn = null;
+            initPeer();
+        });
+
+        window.addEventListener('pagehide', () => { if (conn) send({ t: 'bye' }); });
+
+        // ---------- scene ----------
+
+        const renderer = new THREE.WebGLRenderer({ antialias: false });
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+        renderer.setSize(innerWidth, innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x04040c);
+        const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 100);
+
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 1.1, 0.5, 0.15);
+        composer.addPass(bloom);
+        composer.addPass(new OutputPass());
+
+        function layoutCamera() {
+            camera.aspect = innerWidth / innerHeight;
+            camera.position.set(0, 1.2, LAYOUT.camZ * Math.max(1, 1.45 / camera.aspect));
+            camera.lookAt(0, 0, 0);
+            camera.updateProjectionMatrix();
+        }
+
+        addEventListener('resize', () => {
+            layoutCamera();
+            renderer.setSize(innerWidth, innerHeight);
+            composer.setSize(innerWidth, innerHeight);
+        });
+        layoutCamera();
+
+        // ---------- pieces ----------
+
+        const blackMat = new THREE.MeshBasicMaterial({ color: 0x03030c });
+        const pieces = ROWS.map((n, r) => {
+            const geo = SOLIDS[r].make();
+            const edges = new THREE.EdgesGeometry(geo);
+            const base = new THREE.Color(SOLIDS[r].color);
+            return Array.from({ length: n }, (_, i) => {
+                const group = new THREE.Group();
+                group.position.set((i - (n - 1) / 2) * LAYOUT.dx, LAYOUT.rowY(r), 0);
+                const mesh = new THREE.Mesh(geo, blackMat);
+                mesh.scale.setScalar(0.96);
+                mesh.userData = { row: r, idx: i };
+                const mat = new THREE.LineBasicMaterial({ color: base.clone() });
+                group.add(mesh, new THREE.LineSegments(edges, mat));
+                scene.add(group);
+                const seed = r * 7 + i;
+                return {
+                    group, mesh, mat, base,
+                    boost: base.clone().multiplyScalar(2.4),
+                    axis: new THREE.Vector3(Math.sin(seed * 3.1), Math.cos(seed * 1.7), Math.sin(seed * 5.3)).normalize(),
+                    speed: 0.25 + 0.3 * ((seed * 13) % 7) / 7,
+                    phase: seed * 1.37,
+                    hl: false, scale: 1,
+                };
+            });
+        });
+        const pickMeshes = pieces.flat().map(p => p.mesh);
+
+        function resetBoard() {
+            board = ROWS.slice();
+            hover = null;
+            for (const p of pieces.flat()) { p.group.visible = true; p.hl = false; p.scale = 1; p.mat.color.copy(p.base); }
+        }
+
+        function killPiece(p) {
+            p.group.visible = false;
+            explode(p.group.position.x, p.group.position.y, p.base);
+            explodeSfx();
+        }
+
+        // ---------- grid fabric ----------
+
+        const gN = GRID.nx * GRID.ny;
+        const gHx = new Float32Array(gN), gHy = new Float32Array(gN);
+        const gDx = new Float32Array(gN), gDy = new Float32Array(gN);
+        const gVx = new Float32Array(gN), gVy = new Float32Array(gN);
+        const gAx = new Float32Array(gN), gAy = new Float32Array(gN);
+        for (let iy = 0; iy < GRID.ny; iy++) for (let ix = 0; ix < GRID.nx; ix++) {
+            const i = iy * GRID.nx + ix;
+            gHx[i] = GRID.x0 + (GRID.x1 - GRID.x0) * ix / (GRID.nx - 1);
+            gHy[i] = GRID.y0 + (GRID.y1 - GRID.y0) * iy / (GRID.ny - 1);
+        }
+        const gridPos = new Float32Array(gN * 3);
+        for (let i = 0; i < gN; i++) gridPos[i * 3 + 2] = GRID.z;
+        const gridIdx = [];
+        for (let iy = 0; iy < GRID.ny; iy++) for (let ix = 0; ix < GRID.nx; ix++) {
+            const i = iy * GRID.nx + ix;
+            if (ix < GRID.nx - 1) gridIdx.push(i, i + 1);
+            if (iy < GRID.ny - 1) gridIdx.push(i, i + GRID.nx);
+        }
+        const gridGeo = new THREE.BufferGeometry();
+        gridGeo.setAttribute('position', new THREE.BufferAttribute(gridPos, 3).setUsage(THREE.DynamicDrawUsage));
+        gridGeo.setIndex(gridIdx);
+        const gridLines = new THREE.LineSegments(gridGeo, new THREE.LineBasicMaterial({
+            color: 0x181060, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+        }));
+        gridLines.frustumCulled = false;
+        scene.add(gridLines);
+
+        function gridStep() {
+            const { nx, ny, kHome, kN, damp } = GRID;
+            for (let iy = 1; iy < ny - 1; iy++) for (let ix = 1; ix < nx - 1; ix++) {
+                const i = iy * nx + ix, l = i - 1, r = i + 1, u = i - nx, d = i + nx;
+                gAx[i] = -kHome * gDx[i] + kN * (gDx[l] + gDx[r] + gDx[u] + gDx[d] - 4 * gDx[i]);
+                gAy[i] = -kHome * gDy[i] + kN * (gDy[l] + gDy[r] + gDy[u] + gDy[d] - 4 * gDy[i]);
+            }
+            for (let iy = 1; iy < ny - 1; iy++) for (let ix = 1; ix < nx - 1; ix++) {
+                const i = iy * nx + ix;
+                gVx[i] = (gVx[i] + gAx[i]) * damp;
+                gVy[i] = (gVy[i] + gAy[i]) * damp;
+                gDx[i] += gVx[i];
+                gDy[i] += gVy[i];
+            }
+        }
+
+        function gridImpulse(cx, cy, radius, strength) {
+            for (let i = 0; i < gN; i++) {
+                const ddx = gHx[i] - cx, ddy = gHy[i] - cy;
+                const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+                if (dist > radius || dist < 1e-4) continue;
+                const s = strength * (1 - dist / radius) ** 2 / dist;
+                gVx[i] += ddx * s;
+                gVy[i] += ddy * s;
+            }
+        }
+
+        function gridWrite() {
+            for (let i = 0; i < gN; i++) {
+                gridPos[i * 3] = gHx[i] + gDx[i];
+                gridPos[i * 3 + 1] = gHy[i] + gDy[i];
+            }
+            gridGeo.attributes.position.needsUpdate = true;
+        }
+
+        // ---------- particles / fx ----------
+
+        const P_MAX = 4096, P_PER = 90;
+        const pGeo = new THREE.BufferGeometry();
+        const pPos = new Float32Array(P_MAX * 3);
+        const pVel = new Float32Array(P_MAX * 3);
+        const pBirth = new Float32Array(P_MAX).fill(-1e3);
+        const pLife = new Float32Array(P_MAX).fill(1);
+        const pCol = new Float32Array(P_MAX * 3);
+        pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+        pGeo.setAttribute('aVel', new THREE.BufferAttribute(pVel, 3));
+        pGeo.setAttribute('aBirth', new THREE.BufferAttribute(pBirth, 1));
+        pGeo.setAttribute('aLife', new THREE.BufferAttribute(pLife, 1));
+        pGeo.setAttribute('aColor', new THREE.BufferAttribute(pCol, 3));
+        const pMat = new THREE.ShaderMaterial({
+            uniforms: { uTime: { value: 0 } },
+            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+            vertexShader: `
+                attribute vec3 aVel; attribute float aBirth; attribute float aLife; attribute vec3 aColor;
+                uniform float uTime;
+                varying vec3 vColor; varying float vFade;
+                void main() {
+                    float age = uTime - aBirth;
+                    float t = age / aLife;
+                    float alive = (age >= 0.0 && t <= 1.0) ? 1.0 : 0.0;
+                    vec3 p = position + aVel * (1.0 - exp(-2.2 * age)) / 2.2;
+                    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+                    gl_Position = projectionMatrix * mv;
+                    gl_PointSize = alive * 6.0 * (1.0 - t) * (140.0 / -mv.z);
+                    vColor = aColor;
+                    vFade = alive * (1.0 - t);
+                }`,
+            fragmentShader: `
+                varying vec3 vColor; varying float vFade;
+                void main() {
+                    float d = length(gl_PointCoord - 0.5);
+                    float a = smoothstep(0.5, 0.1, d) * vFade;
+                    if (a < 0.01) discard;
+                    gl_FragColor = vec4(vColor * 1.15, a * 0.8);
+                }`,
+        });
+        const points = new THREE.Points(pGeo, pMat);
+        points.frustumCulled = false;
+        scene.add(points);
+        let pCursor = 0;
+
+        const rings = Array.from({ length: 8 }, () => {
+            const m = new THREE.Mesh(
+                new THREE.RingGeometry(0.93, 1, 64),
+                new THREE.MeshBasicMaterial({
+                    color: 0xffffff, transparent: true, opacity: 0,
+                    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+                }));
+            m.visible = false;
+            scene.add(m);
+            return { mesh: m, birth: -1 };
+        });
+        let ringCursor = 0;
+
+        let simT = 0, shake = 0, bloomBoost = 0;
+
+        function explode(x, y, color) {
+            for (let k = 0; k < P_PER; k++) {
+                const i = pCursor; pCursor = (pCursor + 1) % P_MAX;
+                pPos[i * 3] = x + (Math.random() - 0.5) * 0.4;
+                pPos[i * 3 + 1] = y + (Math.random() - 0.5) * 0.4;
+                pPos[i * 3 + 2] = (Math.random() - 0.5) * 0.4;
+                const th = Math.random() * Math.PI * 2, ph = Math.acos(Math.random() * 2 - 1);
+                const sp = 3 + Math.random() * 7;
+                pVel[i * 3] = Math.sin(ph) * Math.cos(th) * sp;
+                pVel[i * 3 + 1] = Math.sin(ph) * Math.sin(th) * sp;
+                pVel[i * 3 + 2] = Math.cos(ph) * sp * 0.4;
+                pBirth[i] = simT;
+                pLife[i] = 0.5 + Math.random() * 0.5;
+                const v = 0.75 + Math.random() * 0.5;
+                pCol[i * 3] = color.r * v; pCol[i * 3 + 1] = color.g * v; pCol[i * 3 + 2] = color.b * v;
+            }
+            for (const a of ['position', 'aVel', 'aBirth', 'aLife', 'aColor']) pGeo.attributes[a].needsUpdate = true;
+            const ring = rings[ringCursor]; ringCursor = (ringCursor + 1) % rings.length;
+            ring.mesh.position.set(x, y, 0.2);
+            ring.mesh.material.color.copy(color);
+            ring.birth = simT;
+            ring.mesh.visible = true;
+            gridImpulse(x, y, 6, 0.5);
+            shake = Math.min(0.6, shake + 0.22);
+            bloomBoost = Math.min(0.8, bloomBoost + 0.3);
+        }
+
+        // ---------- input ----------
+
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+        let hover = null;                       // {row, idx} — take = board[row] - idx
+
+        renderer.domElement.addEventListener('pointermove', e => {
+            pointer.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+            updateHover();
+        });
+
+        function updateHover() {
+            let next = null;
+            if (state === 'playing' && myTurn) {
+                raycaster.setFromCamera(pointer, camera);
+                const live = pickMeshes.filter(m => m.userData.idx < board[m.userData.row]);
+                const hit = raycaster.intersectObjects(live, false)[0];
+                if (hit) next = { row: hit.object.userData.row, idx: hit.object.userData.idx };
+            }
+            const changed = !hover !== !next || (hover && next && (hover.row !== next.row || hover.idx !== next.idx));
+            hover = next;
+            if (changed && hover) hoverSfx();
+            renderer.domElement.style.cursor = hover ? 'pointer' : 'default';
+        }
+
+        renderer.domElement.addEventListener('click', () => {
+            if (!hover || state !== 'playing' || !myTurn) return;
+            const { row, idx } = hover;
+            const take = board[row] - idx;
+            send({ t: 'move', game: gameNum, seq: movesApplied, row, take });
+            zapSfx();
+            applyMove(row, take, true);
+            updateHover();
+        });
+
+        // ---------- loop ----------
+
+        let lastT = performance.now(), gridAcc = 0, pokeIn = 2;
+
+        function frame(now) {
+            requestAnimationFrame(frame);
+            const dt = Math.min((now - lastT) / 1000, 0.05);
+            lastT = now;
+            simT += dt;
+
+            // grid physics at fixed 60 Hz
+            gridAcc = Math.min(gridAcc + dt, 3 / 60);
+            while (gridAcc >= 1 / 60) { gridStep(); gridAcc -= 1 / 60; }
+            pokeIn -= dt;
+            if (pokeIn <= 0) {
+                gridImpulse((Math.random() - 0.5) * 30, (Math.random() - 0.5) * 16, 4, 0.12);
+                pokeIn = 2 + Math.random() * 2.5;
+            }
+            gridWrite();
+
+            // pieces: idle spin, pulse, hover highlight
+            for (let r = 0; r < pieces.length; r++) for (let i = 0; i < pieces[r].length; i++) {
+                const p = pieces[r][i];
+                if (!p.group.visible) continue;
+                p.group.rotateOnAxis(p.axis, p.speed * dt);
+                const hl = !!hover && hover.row === r && i >= hover.idx && i < board[r];
+                if (hl !== p.hl) { p.hl = hl; p.mat.color.copy(hl ? p.boost : p.base); }
+                const target = hl ? 1.16 : 1;
+                p.scale += (target - p.scale) * (1 - Math.exp(-14 * dt));
+                p.group.scale.setScalar(p.scale * (1 + 0.04 * Math.sin(simT * 2 + p.phase)));
+            }
+
+            // fx decay
+            pMat.uniforms.uTime.value = simT;
+            for (const ring of rings) {
+                if (!ring.mesh.visible) continue;
+                const t = (simT - ring.birth) / 0.5;
+                if (t >= 1) { ring.mesh.visible = false; continue; }
+                ring.mesh.scale.setScalar(0.2 + 8 * t);
+                ring.mesh.material.opacity = 0.9 * (1 - t);
+            }
+            shake *= Math.pow(0.5, dt / 0.12);
+            camera.position.x = (Math.random() - 0.5) * 2 * shake;
+            camera.position.y = 1.2 + (Math.random() - 0.5) * 2 * shake;
+            bloomBoost *= Math.pow(0.5, dt / 0.15);
+            bloom.strength = 1.1 + bloomBoost;
+
+            composer.render();
+        }
+
+        // ---------- boot ----------
+
+        document.body.dataset.booted = '1';
+        $('boot').style.display = 'none';
+        resetBoard();
+        if (location.hash.length > 1) { role = 'guest'; hostId = location.hash.slice(1); }
+        statusEl.textContent = 'connecting to matchmaking…';
+        initPeer();
+        requestAnimationFrame(frame);
+    </script>
+</body>
+
+</html>
