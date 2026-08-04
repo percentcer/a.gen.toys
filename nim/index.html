@@ -195,6 +195,9 @@
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
         import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+        import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+        import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+        import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 
         // ---------- config ----------
 
@@ -658,9 +661,12 @@
         scene.background = new THREE.Color(0x04040c);
         const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 100);
 
-        const composer = new EffectComposer(renderer);
+        // MSAA target: the canvas antialias flag is moot once rendering goes
+        // through the composer, so multisample the composer's target instead
+        const composer = new EffectComposer(renderer,
+            new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: 8 }));
         composer.addPass(new RenderPass(scene, camera));
-        const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 1.1, 0.5, 0.15);
+        const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.1, 0.5, 0.15);
         composer.addPass(bloom);
         composer.addPass(new OutputPass());
 
@@ -675,15 +681,19 @@
             layoutCamera();
             renderer.setSize(innerWidth, innerHeight);
             composer.setSize(innerWidth, innerHeight);
+            for (const m of lineMats) m.resolution.set(innerWidth, innerHeight);
         });
         layoutCamera();
 
         // ---------- pieces ----------
 
         const blackMat = new THREE.MeshBasicMaterial({ color: 0x03030c });
+        const lineMats = [];                    // LineMaterial needs its resolution refreshed on resize
         const pieces = ROWS.map((n, r) => {
             const geo = SOLIDS[r].make();
-            const edges = new THREE.EdgesGeometry(geo);
+            // fat lines (screen-space quads): native 1px GL lines skip MSAA
+            // under ANGLE/D3D, so wireframes stay jagged without them
+            const edges = new LineSegmentsGeometry().fromEdgesGeometry(new THREE.EdgesGeometry(geo));
             const base = new THREE.Color(SOLIDS[r].color);
             return Array.from({ length: n }, (_, i) => {
                 const group = new THREE.Group();
@@ -691,8 +701,10 @@
                 const mesh = new THREE.Mesh(geo, blackMat);
                 mesh.scale.setScalar(0.96);
                 mesh.userData = { row: r, idx: i };
-                const mat = new THREE.LineBasicMaterial({ color: base.clone() });
-                group.add(mesh, new THREE.LineSegments(edges, mat));
+                const mat = new LineMaterial({ color: base.getHex(), linewidth: 2 });
+                mat.resolution.set(innerWidth, innerHeight);
+                lineMats.push(mat);
+                group.add(mesh, new LineSegments2(edges, mat));
                 scene.add(group);
                 const seed = r * 7 + i;
                 return {
