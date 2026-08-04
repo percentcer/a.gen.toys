@@ -5,7 +5,8 @@ There is a jackpot size at which a $2 ticket has positive expected value — the
 toy computes where that threshold sits once splitting and taxes are priced in,
 and shows how far past every drawing in history it lies.
 
-The page reads the live jackpot from
+The page reads the live jackpot, cash value, last drawing's winning numbers,
+and the next drawing date (with a countdown) from
 [powerball.com](https://www.powerball.com/) (via the
 [r.jina.ai](https://r.jina.ai) reader proxy, since powerball.com sends no CORS
 headers), guesses your state from your IP (ipapi.co, falling back to
@@ -37,6 +38,6 @@ down it runs from a baked-in snapshot.
   multiplier and the flat $2M match-5.
 
 Everything is one static `index.html` — no build, no server, runs from
-`file://`. The chart is hand-rolled inline SVG. Numbers are a toy: tax tables
+`file://`. Numbers are a toy: tax tables
 are approximate top rates, the sales curve is an eyeball fit, and none of it
 is financial advice.
