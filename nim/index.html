@@ -447,6 +447,7 @@
         let state = 'boot';                     // boot | waiting | joining | playing | gameover | desync
         let board = ROWS.slice();
         let myTurn = false, movesApplied = 0, gameNum = 0, game0First = 'host';
+        let remoteHover = null;                 // opponent's considered move, mirrored over the wire
 
         const firstOf = n => n % 2 === 0 ? game0First : (game0First === 'host' ? 'guest' : 'host');
 
@@ -470,6 +471,7 @@
             board[row] -= take;
             movesApplied++;
             hover = null;
+            remoteHover = null;
             if (board.reduce((a, b) => a + b, 0) === 0) gameOver(mine ? 'lose' : 'win');
             else { myTurn = !mine; updateHud(); }
         }
@@ -567,6 +569,14 @@
                     applyMove(msg.row, msg.take, false);
                     break;
                 }
+                case 'hov':
+                    // cosmetic — validate but never desync over it
+                    remoteHover = null;
+                    if (state === 'playing' && !myTurn && msg.game === gameNum &&
+                        Number.isInteger(msg.row) && msg.row >= 0 && msg.row < ROWS.length &&
+                        Number.isInteger(msg.idx) && msg.idx >= 0 && msg.idx < board[msg.row])
+                        remoteHover = { row: msg.row, idx: msg.idx };
+                    break;
                 case 'rematch':
                     if (state === 'gameover' && msg.game === gameNum + 1) { flashEl.classList.remove('show'); startGame(msg.game); }
                     // a rematch for the game already running = simultaneous click; ignore
@@ -584,6 +594,7 @@
 
         function fail(text) {
             state = 'desync';
+            remoteHover = null;
             updateHud();
             if (text) statusEl.textContent = text;
             if (conn) { const c = conn; conn = null; try { c.close(); } catch (e) { } }
@@ -687,10 +698,11 @@
                 return {
                     group, mesh, mat, base,
                     boost: base.clone().multiplyScalar(2.4),
+                    rboost: base.clone().multiplyScalar(1.6),
                     axis: new THREE.Vector3(Math.sin(seed * 3.1), Math.cos(seed * 1.7), Math.sin(seed * 5.3)).normalize(),
                     speed: 0.25 + 0.3 * ((seed * 13) % 7) / 7,
                     phase: seed * 1.37,
-                    hl: false, scale: 1,
+                    hl: 0, scale: 1,        // 0 none | 1 my hover | 2 opponent's hover
                 };
             });
         });
@@ -699,7 +711,8 @@
         function resetBoard() {
             board = ROWS.slice();
             hover = null;
-            for (const p of pieces.flat()) { p.group.visible = true; p.hl = false; p.scale = 1; p.mat.color.copy(p.base); }
+            remoteHover = null;
+            for (const p of pieces.flat()) { p.group.visible = true; p.hl = 0; p.scale = 1; p.mat.color.copy(p.base); }
         }
 
         function killPiece(p) {
@@ -882,6 +895,8 @@
             const changed = !hover !== !next || (hover && next && (hover.row !== next.row || hover.idx !== next.idx));
             hover = next;
             if (changed && hover) hoverSfx();
+            if (changed && state === 'playing' && myTurn && conn)
+                send({ t: 'hov', game: gameNum, row: hover ? hover.row : -1, idx: hover ? hover.idx : 0 });
             renderer.domElement.style.cursor = hover ? 'pointer' : 'default';
         }
 
@@ -923,9 +938,11 @@
                 const p = pieces[r][i];
                 if (!p.group.visible) continue;
                 p.group.rotateOnAxis(p.axis, p.speed * dt);
-                const hl = !!hover && hover.row === r && i >= hover.idx && i < board[r];
-                if (hl !== p.hl) { p.hl = hl; p.mat.color.copy(hl ? p.boost : p.base); }
-                const target = hl ? 1.16 : 1;
+                const mine = !!hover && hover.row === r && i >= hover.idx && i < board[r];
+                const theirs = !!remoteHover && remoteHover.row === r && i >= remoteHover.idx && i < board[r];
+                const mode = mine ? 1 : theirs ? 2 : 0;
+                if (mode !== p.hl) { p.hl = mode; p.mat.color.copy(mode === 1 ? p.boost : mode === 2 ? p.rboost : p.base); }
+                const target = mode === 1 ? 1.16 : mode === 2 ? 1.1 : 1;
                 p.scale += (target - p.scale) * (1 - Math.exp(-14 * dt));
                 p.group.scale.setScalar(p.scale * (1 + 0.04 * Math.sin(simT * 2 + p.phase)));
             }
