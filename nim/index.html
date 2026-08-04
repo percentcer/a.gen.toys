@@ -156,19 +156,19 @@
 </head>
 
 <body>
-    <div id="boot">loading…</div>
+    <div id="boot">loading</div>
     <div id="vig" class="idle"></div>
     <div id="hud">
         <div id="tl"><span id="brand">NIM</span><span id="status">booting…</span></div>
         <div id="tr">
-            <button id="linkBtn" class="pulse">copy invite link</button>
-            <button id="muteBtn">sound off</button>
+            <button id="linkBtn" class="pulse">invite</button>
+            <button id="muteBtn">mute</button>
         </div>
         <input id="linkBox" readonly>
         <div id="center">
             <div id="flash"></div>
             <button id="rematchBtn">rematch</button>
-            <button id="retryBtn">retry connection</button>
+            <button id="retryBtn">retry</button>
         </div>
     </div>
 
@@ -176,7 +176,7 @@
         // if the module script never boots (no internet / CDN down), say so
         setTimeout(function () {
             if (!document.body.dataset.booted)
-                document.getElementById('boot').textContent = 'this toy needs internet — could not reach the cdn';
+                document.getElementById('boot').textContent = 'cdn unreachable';
         }, 7000);
     </script>
 
@@ -235,14 +235,14 @@
 
         function updateHud() {
             let text = '', vig = 'idle';
-            if (state === 'waiting') text = 'waiting for opponent — send the invite link';
-            else if (state === 'joining') text = 'connecting to host…';
+            if (state === 'waiting') text = 'awaiting opponent';
+            else if (state === 'joining') text = 'connecting';
             else if (state === 'playing') {
-                if (myTurn) { text = 'your move — whoever takes the last piece loses'; vig = 'me'; }
-                else { text = "opponent's move"; vig = 'them'; }
+                if (myTurn) { text = 'your move'; vig = 'me'; }
+                else { text = 'their move'; vig = 'them'; }
             }
-            else if (state === 'gameover') { text = 'click rematch to play again'; vig = 'over'; }
-            else if (state === 'desync') text = 'protocol error — reload to play again';
+            else if (state === 'gameover') { text = 'rematch'; vig = 'over'; }
+            else if (state === 'desync') text = 'desync — reload';
             statusEl.textContent = text;
             vigEl.className = vig;
             rematchBtn.style.display = state === 'gameover' ? '' : 'none';
@@ -252,7 +252,7 @@
             if (!link) return;
             const copied = () => {
                 linkBtn.textContent = 'copied';
-                setTimeout(() => { linkBtn.textContent = 'copy invite link'; }, 1500);
+                setTimeout(() => { linkBtn.textContent = 'invite'; }, 1500);
             };
             const fallback = () => {
                 // no clipboard api (e.g. chrome on file://) — select in a visible box
@@ -436,7 +436,7 @@
 
         muteBtn.addEventListener('click', () => {
             muted = !muted;
-            muteBtn.textContent = muted ? 'sound on' : 'sound off';
+            muteBtn.textContent = muted ? 'unmute' : 'mute';
             if (master) master.gain.value = muted ? 0 : 0.8;
         });
 
@@ -457,7 +457,7 @@
             state = 'playing';
             myTurn = firstOf(n) === role;
             hover = null;
-            flash(myTurn ? 'YOU MOVE FIRST' : 'OPPONENT MOVES FIRST');
+            flash('LAST PIECE LOSES');
             updateHud();
         }
 
@@ -479,13 +479,13 @@
             myTurn = false;
             updateHud();
             if (result === 'win') {
-                flash('YOU WIN — THEY TOOK THE LAST PIECE', true);
+                flash('WIN', true);
                 winSfx();
                 for (let i = 0; i < 6; i++) setTimeout(() => explode(
                     (Math.random() - 0.5) * 16, (Math.random() - 0.5) * 10,
                     new THREE.Color(SOLIDS[i % 4].color)), 250 + i * 140);
             } else {
-                flash('YOU LOSE — YOU TOOK THE LAST PIECE', true);
+                flash('LOSE', true);
                 loseSfx();
             }
         }
@@ -502,7 +502,7 @@
         let peer = null, conn = null, role = 'host', link = '', hostId = '';
 
         function initPeer() {
-            if (typeof Peer === 'undefined') { statusEl.textContent = 'peerjs failed to load — check internet and reload'; return; }
+            if (typeof Peer === 'undefined') { statusEl.textContent = 'peerjs unreachable — reload'; return; }
             peer = new Peer();
             peer.on('open', id => {
                 link = location.href.split('#')[0] + '#' + id;
@@ -546,7 +546,7 @@
             switch (msg.t) {
                 case 'hello':
                     if (role !== 'host') break;
-                    if (msg.v !== NET.version) { send({ t: 'err', code: 'version' }); fail('version mismatch — both players need the latest page'); break; }
+                    if (msg.v !== NET.version) { send({ t: 'err', code: 'version' }); fail('version mismatch'); break; }
                     send({ t: 'hello', v: NET.version });
                     game0First = Math.random() < 0.5 ? 'host' : 'guest';
                     send({ t: 'start', game: 0, first: game0First });
@@ -575,8 +575,8 @@
                     handleDisconnect();
                     break;
                 case 'err':
-                    if (msg.code === 'full') fail('that game already has two players');
-                    else if (msg.code === 'version') fail('version mismatch — both players need the latest page');
+                    if (msg.code === 'full') fail('game full');
+                    else if (msg.code === 'version') fail('version mismatch');
                     else fail();
                     break;
             }
@@ -597,14 +597,14 @@
                 resetBoard();
                 state = 'waiting';
                 updateHud();
-                statusEl.textContent = 'opponent left — same invite link still works';
+                statusEl.textContent = 'opponent left — link valid';
             } else {
                 // become a host with a fresh identity
                 try { peer.destroy(); } catch (e) { }
                 role = 'host';
                 resetBoard();
                 state = 'boot';
-                statusEl.textContent = 'opponent left — getting you a new invite link…';
+                statusEl.textContent = 'opponent left — relinking';
                 initPeer();
             }
         }
@@ -618,17 +618,17 @@
                     linkBox.value = link;
                     state = 'waiting';
                     updateHud();
-                    statusEl.textContent = "host not found — you're hosting now; send your own invite link";
+                    statusEl.textContent = 'host not found — now hosting';
                 }
                 return;
             }
-            statusEl.textContent = 'connection error (' + (type || 'unknown') + ')';
+            statusEl.textContent = 'error: ' + (type || 'unknown');
             retryBtn.style.display = '';
         }
 
         retryBtn.addEventListener('click', () => {
             retryBtn.style.display = 'none';
-            statusEl.textContent = 'reconnecting…';
+            statusEl.textContent = 'reconnecting';
             if (peer) try { peer.destroy(); } catch (e) { }
             conn = null;
             initPeer();
@@ -951,7 +951,7 @@
         $('boot').style.display = 'none';
         resetBoard();
         if (location.hash.length > 1) { role = 'guest'; hostId = location.hash.slice(1); }
-        statusEl.textContent = 'connecting to matchmaking…';
+        statusEl.textContent = 'connecting';
         initPeer();
         requestAnimationFrame(frame);
     </script>
