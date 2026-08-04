@@ -885,7 +885,10 @@
             renderer.domElement.style.cursor = hover ? 'pointer' : 'default';
         }
 
-        renderer.domElement.addEventListener('click', () => {
+        renderer.domElement.addEventListener('click', e => {
+            // raycast at the click point itself — touch taps never hover first
+            pointer.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+            updateHover();
             if (!hover || state !== 'playing' || !myTurn) return;
             const { row, idx } = hover;
             const take = board[row] - idx;
