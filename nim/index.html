@@ -245,7 +245,7 @@
             else if (state === 'desync') text = 'desync — reload';
             statusEl.textContent = text;
             vigEl.className = vig;
-            rematchBtn.style.display = state === 'gameover' ? '' : 'none';
+            rematchBtn.style.display = state === 'gameover' ? 'inline-block' : 'none';
         }
 
         linkBtn.addEventListener('click', () => {
@@ -623,7 +623,7 @@
                 return;
             }
             statusEl.textContent = 'error: ' + (type || 'unknown');
-            retryBtn.style.display = '';
+            retryBtn.style.display = 'inline-block';
         }
 
         retryBtn.addEventListener('click', () => {
