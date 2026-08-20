@@ -120,6 +120,14 @@ for (let n = 1; n <= 6; n++) {
   numerals.appendChild(text);
 }
 
+// Each 6-hour cycle gets its own meridiem-style designation.
+const PERIODS = [
+  { abbr: 'PMN', full: 'post mediam noctem' },  // 00:00–06:00
+  { abbr: 'AM',  full: 'ante meridiem' },       // 06:00–12:00
+  { abbr: 'PM',  full: 'post meridiem' },       // 12:00–18:00
+  { abbr: 'AMN', full: 'ante mediam noctem' },  // 18:00–24:00
+];
+
 const hourHand = document.getElementById('hour');
 const minuteHand = document.getElementById('minute');
 const secondHand = document.getElementById('second');
@@ -142,10 +150,10 @@ function render(now) {
   rotate(minuteHand, (m + s / 60) * 6);
   rotate(secondHand, s * 6);
 
-  const quarter = Math.floor(h / 6) + 1;             // 1..4
+  const period = PERIODS[Math.floor(h / 6)];
   const displayHour = h6 === 0 ? 6 : h6;
-  cycleOut.textContent = `Q${quarter} ${displayHour}:${pad(m)}:${pad(now.getSeconds())}`;
-  wallOut.textContent = `${pad(h)}:${pad(m)}:${pad(now.getSeconds())} · 24h`;
+  cycleOut.textContent = `${displayHour}:${pad(m)}:${pad(now.getSeconds())} ${period.abbr}`;
+  wallOut.textContent = `${period.full} · ${pad(h)}:${pad(m)}:${pad(now.getSeconds())} 24h`;
 }
 
 function frame() {
