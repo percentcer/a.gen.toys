@@ -1288,7 +1288,7 @@ const dayCurveW = (() => {
     const lbl = el("text", { "font-size": 11.5, class: "num", fill: "var(--sun-pale)" });
     svg.appendChild(lbl);
 
-    cache = { t0, t1, xOfT, yOf, yLo, yHi };
+    cache = { t0, t1, xOfT, yOf, yLo, yHi, fr };
     live = { cross, sunG, lbl };
   }
 
@@ -1308,12 +1308,11 @@ const dayCurveW = (() => {
   attachScrub(svg, (p) => {
     if (!cache) return null;
     const frac = clamp((p.x - L) / PW, 0, 1);
-    let t;
-    if (state.dayAxis === "civil") t = lerp(cache.t0, cache.t1, frac);
-    else {
-      const fr = sst.frame(baseInstant(), state.here, cfgFor());
-      t = sst.toInstant(clamp(frac * 24, 0, 23.9999), fr);
-    }
+    /* stay strictly inside the drawn day: landing on nextMidnight would put the
+       whole page on the following SST day and walk it forward on every move */
+    const t = clamp(state.dayAxis === "civil"
+      ? lerp(cache.t0, cache.t1, frac)
+      : sst.toInstant(clamp(frac * 24, 0, 23.9999), cache.fr), cache.t0, cache.t1 - 1);
     const loc = state.here, s = sst.at(t, loc, cfgFor());
     return {
       instant: t,
@@ -1422,7 +1421,7 @@ const rulerW = (() => {
     const link = el("line", { stroke: "var(--s3)", "stroke-width": 1.6, "stroke-dasharray": "3 3" });
     svg.appendChild(link); svg.appendChild(c1); svg.appendChild(c2);
 
-    cache = { t0, t1, xCivil, xSst };
+    cache = { t0, t1, xCivil, xSst, fr };
     live = { c1, c2, link };
   }
 
@@ -1441,10 +1440,9 @@ const rulerW = (() => {
   attachScrub(svg, (p) => {
     if (!cache) return null;
     const frac = clamp((p.x - L) / PW, 0, 1);
-    const fr = sst.frame(baseInstant(), state.here, cfgFor());
-    const t = p.y > (TOP + BH + BOT) / 2
-      ? sst.toInstant(clamp(frac * 24, 0, 23.9999), fr)
-      : lerp(cache.t0, cache.t1, frac);
+    const t = clamp(p.y > (TOP + BH + BOT) / 2
+      ? sst.toInstant(clamp(frac * 24, 0, 23.9999), cache.fr)
+      : lerp(cache.t0, cache.t1, frac), cache.t0, cache.t1 - 1);
     const loc = state.here, s = sst.at(t, loc, cfgFor());
     const f = sst.fmt(s.hours, state.hour12, true);
     return { instant: t, title: f.core + " " + f.suffix + " SST",
@@ -1879,7 +1877,7 @@ const cmpW = (() => {
 
   attachScrub(svg, (p) => {
     if (!geo) return null;
-    const t = lerp(geo.t0, geo.t1, clamp((p.x - L) / PW, 0, 1));
+    const t = clamp(lerp(geo.t0, geo.t1, clamp((p.x - L) / PW, 0, 1)), geo.t0, geo.t1 - 1);
     const cfg = cfgFor();
     const a = sst.at(t, state.here, cfg), b = sst.at(t, state.there, cfg);
     return { instant: t, title: fmtClock(t, state.here.tz) + " civil, here",
