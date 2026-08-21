@@ -7,27 +7,31 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23291d2b'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%23ff8a32'/%3E%3C/svg%3E">
 <style>
 :root{
-  /* twilight palette */
-  --deep-plum:#4e1d4c; --wine:#771d50; --mauve:#904d57; --clay:#be6a62;
-  --crimson:#ac2f45; --ember:#e64639; --orange:#ff8a32; --gold:#f1b640;
-  --peach:#ffc5a3; --peri:#686f9a; --indigo:#404974; --slate:#283440;
-  --char:#3d2935; --plum:#291d2b; --void:#1b1f22; --soot:#21181b;
+  /* the palette, in ramp order */
+  --p1:#ffff78; --p2:#ffd647; --p3:#ffc247; --p4:#ffa936;
+  --p5:#ff8b6f; --p6:#e67595; --p7:#9a6390; --p8:#464678;
 
-  /* surfaces */
-  --bg:#1b1f22; --bg-grad-a:#21181b; --bg-grad-b:#1b1f22;
-  --card:#21232a; --card-2:#291d2b; --rule:#3d2935; --rule-2:#404974;
+  /* named roles drawn from it */
+  --sun-hi:var(--p2); --sun:var(--p4); --sun-pale:var(--p3);
+  --dusk:var(--p5); --alert:var(--p6); --dusk-dk:var(--p7);
+  --dusk-lt:#7573d1;   /* p8 lifted into the readable band */
+
+  /* surfaces — p8's indigo carried down into night */
+  --bg:#0f0f1c; --bg-hi:#262642;
+  --card:#1a1a2e; --card-2:#23233d; --inner:#141425; --shade:#0f0f1c;
+  --rule:#33335a; --rule-2:#464678;
 
   /* ink */
-  --ink:#f2e3da; --ink-2:#c3a99f; --ink-3:#8d7d84;
+  --ink:#f4ecdd; --ink-2:#bfb4c6; --ink-3:#8b84a3;
 
-  /* validated categorical series (dataviz validator, dark surface) */
-  --s1:#db7424;  /* here / day-hour   (from #ff8a32) */
-  --s2:#6f79c4;  /* there / night-hour (from #686f9a) */
-  --s3:#d95446;  /* civil reference    (from #e64639) */
+  /* categorical series — hue-preserving nudges, all six checks pass on --card */
+  --s1:#bf790f;  /* here / day-hour    (from #ffa936) */
+  --s2:#7573d1;  /* there / night-hour (from #464678) */
+  --s3:#ff8b6f;  /* the "now" marker: an annotation, not a series */
 
   /* sequential twilight ramp, dark -> light */
-  --t-night:#191d20; --t-astro:#232a33; --t-naut:#2f3d52; --t-civil:#475382; --t-glow:#7b83b4;
-  --t-day-a:#f1b640; --t-day-b:#ffc5a3;
+  --t-night:#101020; --t-astro:#1b1b31; --t-naut:#2b2445; --t-civil:#46304a;
+  --t-day-a:#a8712a;   /* one daylight tone across every chart */
 
   --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
   --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -36,23 +40,23 @@
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{
-  background:#1b1f22;
+  background:var(--bg);
   color:var(--ink); font-family:var(--sans); font-size:14px; line-height:1.45;
   -webkit-font-smoothing:antialiased;
 }
 h1,h2,h3{margin:0; font-weight:600; letter-spacing:.2px}
-a{color:var(--gold)}
+a{color:var(--sun-hi)}
 .wrap{max-width:1280px; margin:0 auto; padding:0 20px 80px}
 
 /* ── masthead ─────────────────────────────────────────── */
 header.mast{padding:34px 0 18px}
 .mast .title{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap}
-.mast h1{font-size:30px; color:var(--gold)}
+.mast h1{font-size:30px; color:var(--p3)}
 
 /* ── controls ─────────────────────────────────────────── */
 .controls{
   position:sticky; top:0; z-index:40; margin:18px 0 22px;
-  background:#191c1f;
+  background:var(--card);
   border:1px solid var(--rule); border-radius:var(--r); padding:12px 14px;
   display:flex; gap:18px; flex-wrap:wrap; align-items:flex-end;
 }
@@ -60,27 +64,29 @@ header.mast{padding:34px 0 18px}
 .ctl > label{font-size:10.5px; letter-spacing:.9px; text-transform:uppercase; color:var(--ink-3)}
 .ctl .row{display:flex; gap:6px; align-items:center}
 select,input[type=text],input[type=number],input[type=datetime-local]{
-  background:#171a1e; color:var(--ink); border:1px solid var(--rule);
+  background:var(--inner); color:var(--ink); border:1px solid var(--rule);
   border-radius:var(--r); padding:6px 8px; font-family:var(--sans); font-size:13px; min-width:0;
 }
-select:focus,input:focus{outline:2px solid var(--peri); outline-offset:1px}
+select:focus,input:focus{outline:2px solid var(--dusk-lt); outline-offset:1px}
 input[type=number]{width:74px} input[type=text].coord{width:82px; font-family:var(--mono)}
 button{
-  background:#221d26; color:var(--ink); border:1px solid var(--rule); border-radius:var(--r);
+  background:#241f3f; color:var(--ink); border:1px solid var(--rule); border-radius:var(--r);
   padding:6px 10px; font-size:12.5px; cursor:pointer; font-family:var(--sans);
 }
-button:hover{background:#2c2431; border-color:var(--rule-2)}
-button:focus-visible{outline:2px solid var(--peri); outline-offset:1px}
+button:hover{background:#2f2952; border-color:var(--rule-2)}
+button:focus-visible{outline:2px solid var(--dusk-lt); outline-offset:1px}
 .seg{display:inline-flex; border:1px solid var(--rule); border-radius:var(--r); overflow:hidden}
 .seg button{border:0; border-radius:0; background:transparent; padding:6px 11px; color:var(--ink-3)}
 .seg button + button{border-left:1px solid var(--rule)}
-.seg button[aria-pressed=true]{background:#33263a; color:var(--peach)}
+.seg button[aria-pressed=true]{
+  background:#332b57; color:var(--sun-pale);
+}
 .spacer{flex:1 1 auto}
 .livebadge{display:inline-flex; align-items:center; gap:7px; font-size:12px; color:var(--ink-2);
   border:1px solid var(--rule); border-radius:var(--r); padding:5px 11px; white-space:nowrap}
 .dot{width:7px;height:7px;background:var(--s1)}
-.livebadge.scrub{border-color:var(--gold); color:var(--gold)}
-.livebadge.scrub .dot{background:var(--gold)}
+.livebadge.scrub{border-color:var(--sun-hi); color:var(--sun-hi)}
+.livebadge.scrub .dot{background:var(--sun-hi)}
 
 /* ── layout ───────────────────────────────────────────── */
 .grid{display:grid; gap:16px}
@@ -90,7 +96,7 @@ button:focus-visible{outline:2px solid var(--peri); outline-offset:1px}
 @media (max-width:1080px){ .row-now,.row-year{grid-template-columns:1fr} }
 
 .card{
-  background:#211d26;
+  background:var(--card);
   border:1px solid var(--rule); border-radius:var(--r); padding:14px 16px 16px;
   position:relative; overflow:hidden;
 }
@@ -100,7 +106,9 @@ button:focus-visible{outline:2px solid var(--peri); outline-offset:1px}
 .card .tools{margin-left:auto; display:flex; gap:6px; align-items:center}
 .sec-title{margin:26px 0 10px; font-size:12px; letter-spacing:1.4px; text-transform:uppercase; color:var(--ink-3);
   display:flex; align-items:center; gap:12px}
-.sec-title:after{content:""; flex:1; height:1px; background:var(--rule)}
+.sec-title:after{
+  content:""; flex:1; height:1px; align-self:center; background:var(--rule);
+}
 
 /* ── clock card ───────────────────────────────────────── */
 .clockwrap{display:flex; flex-direction:column; align-items:center; gap:10px}
@@ -110,28 +118,28 @@ figure.scroll > svg{min-width:720px}
 
 /* ── digital ──────────────────────────────────────────── */
 .digital{font-family:var(--mono); font-size:clamp(34px,5.4vw,56px); line-height:1;
-  letter-spacing:1px; color:var(--peach); display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
-.digital .ampm{font-size:.36em; color:var(--gold); letter-spacing:2px}
-.digital .sec{color:var(--clay)}
+  letter-spacing:1px; color:var(--sun-pale); display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+.digital .ampm{font-size:.36em; color:var(--sun-hi); letter-spacing:2px}
+.digital .sec{color:var(--dusk)}
 .readouts{margin-top:14px; display:grid; grid-template-columns:auto 1fr; gap:5px 14px; font-size:12.5px}
 .readouts dt{color:var(--ink-3)}
 .readouts dd{margin:0; font-family:var(--mono); color:var(--ink)}
 .badge{display:inline-block; font-size:11px; padding:2px 8px; border-radius:var(--r);
-  border:1px solid var(--rule-2); color:var(--peri)}
-.badge.warn{border-color:var(--ember); color:var(--ember)}
-.badge.day{border-color:var(--gold); color:var(--gold)}
-.badge.night{border-color:var(--peri); color:var(--peri)}
+  border:1px solid var(--rule-2); color:var(--dusk-lt)}
+.badge.warn{border-color:var(--alert); color:var(--alert)}
+.badge.day{border-color:var(--sun-hi); color:var(--sun-hi)}
+.badge.night{border-color:var(--dusk-lt); color:var(--dusk-lt)}
 
 /* ── stats ────────────────────────────────────────────── */
 .stats{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-.stat{background:#191d20; border:1px solid var(--rule); border-radius:var(--r); padding:9px 11px}
+.stat{background:var(--inner); border:1px solid var(--rule); border-radius:var(--r); padding:9px 11px}
 .stat .k{font-size:10.5px; letter-spacing:.7px; text-transform:uppercase; color:var(--ink-3)}
 .stat .v{font-family:var(--mono); font-size:17px; color:var(--ink); margin-top:2px}
 .stat .v small{font-size:11px; color:var(--ink-3); font-family:var(--sans)}
 .stat .d{font-size:11px; color:var(--ink-3); margin-top:2px}
 .stat.wide{grid-column:1/-1}
-.stat.alert{border-color:var(--ember); background:#2a1a20}
-.stat.alert .v{color:var(--ember)}
+.stat.alert{border-color:var(--alert); background:#2b1930}
+.stat.alert .v{color:var(--alert)}
 
 /* ── charts ───────────────────────────────────────────── */
 figure{margin:0}
@@ -144,11 +152,11 @@ svg text.num{font-family:var(--mono)}
 .legend .sw.line{height:3px; width:16px}
 .tip{
   position:fixed; z-index:60; pointer-events:none; opacity:0; transition:opacity .1s;
-  background:#17141a; border:1px solid var(--rule-2); border-radius:var(--r);
+  background:#15152a; border:1px solid var(--rule-2); border-radius:var(--r);
   padding:8px 10px; font-size:12px; color:var(--ink); max-width:280px;
 }
 .tip.on{opacity:1}
-.tip .t{font-family:var(--mono); color:var(--peach); margin-bottom:4px}
+.tip .t{font-family:var(--mono); color:var(--sun-pale); margin-bottom:4px}
 .tip .r{display:flex; justify-content:space-between; gap:14px; color:var(--ink-2)}
 .tip .r b{font-family:var(--mono); font-weight:500; color:var(--ink)}
 
@@ -163,17 +171,17 @@ details.tbl summary:hover{color:var(--ink-2)}
 /* ── compare ──────────────────────────────────────────── */
 .cmp{display:grid; grid-template-columns:repeat(2,minmax(200px,1fr)) minmax(300px,1.5fr); gap:16px; align-items:start}
 @media (max-width:1080px){ .cmp{grid-template-columns:1fr 1fr} .cmp .cmp-chart{grid-column:1/-1} }
-.cmp-loc{background:#191d20; border:1px solid var(--rule); border-radius:var(--r); padding:12px}
+.cmp-loc{background:var(--inner); border:1px solid var(--rule); border-radius:var(--r); padding:12px}
 .cmp-loc .name{font-size:13px; color:var(--ink); display:flex; align-items:center; gap:7px}
 .cmp-loc .name .chip{width:9px;height:9px}
-.cmp-loc .big{font-family:var(--mono); font-size:26px; color:var(--peach); margin:6px 0 2px}
+.cmp-loc .big{font-family:var(--mono); font-size:26px; color:var(--sun-pale); margin:6px 0 2px}
 .cmp-loc .sm{font-size:11.5px; color:var(--ink-3); font-family:var(--mono)}
 .cmp-loc .mini{margin:8px auto 0; width:118px}
 
 .foot{margin-top:34px; color:var(--ink-3); font-size:12px; max-width:80ch}
 .foot h3{font-size:12px; letter-spacing:1.2px; text-transform:uppercase; color:var(--ink-3); margin-bottom:8px}
 .foot p{margin:0 0 8px}
-.foot code{font-family:var(--mono); color:var(--clay)}
+.foot code{font-family:var(--mono); color:var(--dusk)}
 .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 </style>
 </head>
@@ -860,7 +868,8 @@ const clockW = (() => {
 
   function buildDial(fr, seg) {
     clear(svg);
-    svg.appendChild(el("circle", { r: 158, fill: seg === "day" ? "#2b2224" : "#1e2130",
+    /* warm face when the sun is up, indigo when it is down */
+    svg.appendChild(el("circle", { r: 158, fill: seg === "day" ? "#2b2138" : "#16162c",
       stroke: "var(--rule)", "stroke-width": 1 }));
 
     const g = el("g");
@@ -871,8 +880,8 @@ const clockW = (() => {
 
     /* hands */
     const hg = el("g");
-    const hourHand = el("path", { d: "M0,10 L-5,0 L0,-92 L5,0 Z", fill: "var(--peach)", stroke: "none" });
-    const minHand = el("path", { d: "M0,14 L-3.4,0 L0,-128 L3.4,0 Z", fill: "var(--gold)", stroke: "none" });
+    const hourHand = el("path", { d: "M0,10 L-5,0 L0,-92 L5,0 Z", fill: "var(--sun-pale)", stroke: "none" });
+    const minHand = el("path", { d: "M0,14 L-3.4,0 L0,-128 L3.4,0 Z", fill: "var(--sun-hi)", stroke: "none" });
     const secHand = el("g");
     secHand.appendChild(el("line", { x1: 0, y1: 22, x2: 0, y2: -138, stroke: "var(--s3)", "stroke-width": 1.4 }));
     hg.appendChild(hourHand); hg.appendChild(minHand); hg.appendChild(secHand);
@@ -910,7 +919,7 @@ const clockW = (() => {
         "stroke-width": active ? 1 : 0.7, opacity: active ? 0.75 : 0.25 }));
       if (active) {
         g.appendChild(el("text", { x: 0, y: 78, "text-anchor": "middle", "font-size": 8.5,
-          "letter-spacing": 1.6, fill: "var(--peri)" },
+          "letter-spacing": 1.6, fill: "var(--dusk-lt)" },
           (rev === 0 ? "1ST" : "2ND") + " REVOLUTION"));
       }
 
@@ -932,15 +941,15 @@ const clockW = (() => {
         const [tx, ty] = P(ring.rr, a);
         const [mx0, my0] = P(ring.r - 5, a), [mx1, my1] = P(ring.r + 5, a);
         g.appendChild(el("line", { x1: mx0, y1: my0, x2: mx1, y2: my1,
-          stroke: isSun ? "var(--orange)" : (active ? "var(--peri)" : "var(--rule-2)"),
+          stroke: isSun ? "var(--sun)" : (active ? "var(--dusk-lt)" : "var(--rule-2)"),
           "stroke-width": isSun ? 2 : 1.2, opacity: active ? 1 : 0.45 }));
         g.appendChild(el("text", { x: tx, y: ty + ring.fs * 0.35, "text-anchor": "middle", "font-size": ring.fs,
-          class: "num", fill: isSun ? "var(--orange)" : (active ? "var(--ink)" : "var(--ink-3)"),
+          class: "num", fill: isSun ? "var(--sun)" : (active ? "var(--ink)" : "var(--ink-3)"),
           opacity: active ? 1 : 0.32 }, label));
         if (isSun) {
           const [sx, sy] = P(ring.r + 13, a);
           g.appendChild(el("circle", { cx: sx, cy: sy, r: 2.6,
-            fill: h === 6 ? "var(--gold)" : "var(--mauve)", opacity: active ? 1 : 0.3 }));
+            fill: h === 6 ? "var(--sun-hi)" : "var(--dusk-dk)", opacity: active ? 1 : 0.3 }));
         }
       }
     });
@@ -958,7 +967,7 @@ const clockW = (() => {
       const a = h * 30, [x, y] = P(114, a);
       const isSun = h === 6 || h === 8;
       g.appendChild(el("text", { x, y: y + 6, "text-anchor": "middle", "font-size": 17, class: "num",
-        fill: isSun ? "var(--orange)" : "var(--ink)" }, String(h)));
+        fill: isSun ? "var(--sun)" : "var(--ink)" }, String(h)));
     }
     /* sunrise sits at 6, sunset at 8 — always, by definition */
     const mark = (h, color, label) => {
@@ -968,8 +977,8 @@ const clockW = (() => {
       g.appendChild(el("text", { x: lx, y: ly + 3.5, "text-anchor": "middle", "font-size": 8.5,
         "letter-spacing": 1, fill: color }, label));
     };
-    mark(6, "var(--gold)", "RISE");
-    mark(8, "var(--mauve)", "SET");
+    mark(6, "var(--sun-hi)", "RISE");
+    mark(8, "var(--dusk-dk)", "SET");
     g.appendChild(el("circle", { r: 96, fill: "none", stroke: "var(--rule)", "stroke-width": 0.7, opacity: 0.5 }));
   }
 
@@ -1169,7 +1178,7 @@ const dayCurveW = (() => {
       if (y1 <= y0) continue;
       g.appendChild(el("rect", { x: L, y: y0, width: PW, height: y1 - y0, fill: b.fill }));
     }
-    g.appendChild(el("rect", { x: L, y: T, width: PW, height: Math.max(0, yOf(0) - T), fill: "#232a33", opacity: .5 }));
+    g.appendChild(el("rect", { x: L, y: T, width: PW, height: Math.max(0, yOf(0) - T), fill: "#191a2e", opacity: .55 }));
 
     /* the curve + fill above the horizon */
     let dLine = "", dFill = "";
@@ -1180,9 +1189,9 @@ const dayCurveW = (() => {
     const y0px = yOf(0);
     dFill = dLine + "L" + xOfT(pts[pts.length - 1].t).toFixed(1) + "," + y0px.toFixed(1)
           + "L" + xOfT(pts[0].t).toFixed(1) + "," + y0px.toFixed(1) + "Z";
-    g.appendChild(el("path", { d: dFill, fill: "var(--t-day-a)", opacity: .32, stroke: "none",
+    g.appendChild(el("path", { d: dFill, fill: "var(--t-day-a)", stroke: "none",
       "clip-path": "url(#dayAbove)" }));
-    g.appendChild(el("path", { d: dLine, fill: "none", stroke: "var(--peach)", "stroke-width": 2,
+    g.appendChild(el("path", { d: dLine, fill: "none", stroke: "var(--sun-pale)", "stroke-width": 2,
       "stroke-linejoin": "round" }));
 
     /* horizon + anchor */
@@ -1197,18 +1206,18 @@ const dayCurveW = (() => {
       g.appendChild(el("line", { x1: x, y1: T, x2: x, y2: T + PH, stroke: color, "stroke-width": 1, opacity: .55 }));
       const side = x > L + PW - 120 ? "end" : "start";
       const dx = side === "end" ? -7 : 7, y0 = T + 14 + row * 46;
-      const halo = { "paint-order": "stroke", stroke: "#141317", "stroke-width": 3.5, "stroke-linejoin": "round" };
+      const halo = { "paint-order": "stroke", stroke: "#12122099", "stroke-width": 3.5, "stroke-linejoin": "round" };
       const txt = (yy, size, fill, cls, s) => g.appendChild(el("text",
         Object.assign({ x: x + dx, y: yy, "text-anchor": side, "font-size": size, fill, class: cls }, halo), s));
       txt(y0, 11, color, null, label);
       txt(y0 + 15, 12.5, "var(--ink)", "num", l2);
       if (l3) txt(y0 + 29, 11, "var(--ink-2)", "num", l3);
     };
-    evt(fr.rise, "RISE", fmtClock(fr.rise, loc.tz), "06:00 SST", "var(--gold)", 0);
+    evt(fr.rise, "RISE", fmtClock(fr.rise, loc.tz), "06:00 SST", "var(--sun-hi)", 0);
     if (fr.day.noon > t0 && fr.day.noon < t1)
       evt(fr.day.noon, "MERIDIAN " + fr.day.maxAlt.toFixed(1) + "°", fmtClock(fr.day.noon, loc.tz),
         sst.fmt(sst.at(fr.day.noon, loc, cfgFor()).hours, false).core + " SST", "var(--s2)", 1);
-    evt(fr.set, "SET", fmtClock(fr.set, loc.tz), "20:00 SST", "var(--mauve)", 0);
+    evt(fr.set, "SET", fmtClock(fr.set, loc.tz), "20:00 SST", "var(--dusk-dk)", 0);
 
     /* axes */
     const ax = el("g"); svg.appendChild(ax);
@@ -1224,9 +1233,9 @@ const dayCurveW = (() => {
       for (let h = 0; h <= 24; h += 2) {
         const x = L + PW * h / 24;
         ax.appendChild(el("line", { x1: x, y1: T + PH, x2: x, y2: T + PH + 4,
-          stroke: (h === 6 || h === 20) ? "var(--orange)" : "var(--rule-2)" }));
+          stroke: (h === 6 || h === 20) ? "var(--sun)" : "var(--rule-2)" }));
         ax.appendChild(el("text", { x, y: H - 12, "text-anchor": "middle", "font-size": 11, class: "num",
-          fill: (h === 6 || h === 20) ? "var(--orange)" : "var(--ink-3)" }, pad2(h % 24) + ":00"));
+          fill: (h === 6 || h === 20) ? "var(--sun)" : "var(--ink-3)" }, pad2(h % 24) + ":00"));
       }
     }
     let lastY = -1e9;
@@ -1247,10 +1256,10 @@ const dayCurveW = (() => {
     svg.appendChild(ov);
     const cross = el("line", { y1: T, y2: T + PH, stroke: "var(--s3)", "stroke-width": 1.2, opacity: .9 });
     const sunG = el("g");
-    sunG.appendChild(el("circle", { r: 9, fill: "var(--orange)", opacity: .22 }));
-    sunG.appendChild(el("circle", { r: 5.2, fill: "var(--orange)", stroke: "var(--soot)", "stroke-width": 1.4 }));
+    sunG.appendChild(el("circle", { r: 9, fill: "var(--sun)", opacity: .22 }));
+    sunG.appendChild(el("circle", { r: 5.2, fill: "var(--sun)", stroke: "var(--shade)", "stroke-width": 1.4 }));
     ov.appendChild(cross); ov.appendChild(sunG);
-    const lbl = el("text", { "font-size": 11.5, class: "num", fill: "var(--peach)" });
+    const lbl = el("text", { "font-size": 11.5, class: "num", fill: "var(--sun-pale)" });
     svg.appendChild(lbl);
 
     cache = { t0, t1, xOfT, yOf, yLo, yHi };
@@ -1289,7 +1298,7 @@ const dayCurveW = (() => {
   });
 
   legend($("dayLegend"), [
-    { color: "var(--peach)", label: "solar altitude", line: true },
+    { color: "var(--sun-pale)", label: "solar altitude", line: true },
     { color: "var(--s3)", label: "anchor altitude", dash: true },
     { color: "var(--t-day-a)", label: "daylight" },
     { color: "var(--t-civil)", label: "civil twilight" },
@@ -1335,7 +1344,7 @@ const rulerW = (() => {
       };
       for (let i = 0; i < seg; i++) {
         const alt = solar.altitude(tAt((i + 0.5) / seg), loc.lat, loc.lon);
-        const c = tintFor(alt, fr.day.anchor), op = alt >= fr.day.anchor ? .55 : .95;
+        const c = tintFor(alt, fr.day.anchor), op = 1;
         if (c !== runC) { flush(i); runStart = i; runC = c; runOp = op; }
       }
       flush(seg);
@@ -1354,7 +1363,7 @@ const rulerW = (() => {
     for (let t = startH; t <= t1; t += HOURMS) tie(t, "var(--rule-2)", .8, .5);
     for (let h = 0; h <= 24; h++) {
       const t = h === 24 ? t1 - 1 : sst.toInstant(h, fr);
-      tie(t, (h === 6 || h === 20) ? "var(--orange)" : "var(--s1)", (h === 6 || h === 20) ? 1.6 : 1, .75);
+      tie(t, (h === 6 || h === 20) ? "var(--sun)" : "var(--s1)", (h === 6 || h === 20) ? 1.6 : 1, .75);
     }
 
     /* labels */
@@ -1371,12 +1380,12 @@ const rulerW = (() => {
     for (let h = 0; h <= 24; h += 2) {
       const x = L + PW * h / 24;
       const sun = h === 6 || h === 20;
-      svg.appendChild(el("line", { x1: x, y1: BOT + BH, x2: x, y2: BOT + BH + 7, stroke: sun ? "var(--orange)" : "var(--rule-2)" }));
+      svg.appendChild(el("line", { x1: x, y1: BOT + BH, x2: x, y2: BOT + BH + 7, stroke: sun ? "var(--sun)" : "var(--rule-2)" }));
       svg.appendChild(el("text", { x, y: BOT + BH + 20, "text-anchor": "middle", "font-size": 11, class: "num",
-        fill: sun ? "var(--orange)" : "var(--ink-3)" }, pad2(h % 24) + ":00"));
+        fill: sun ? "var(--sun)" : "var(--ink-3)" }, pad2(h % 24) + ":00"));
     }
     /* name the two events on the tie lines that matter */
-    for (const [h, label, color] of [[6, "sunrise", "var(--gold)"], [20, "sunset", "var(--mauve)"]]) {
+    for (const [h, label, color] of [[6, "sunrise", "var(--sun-hi)"], [20, "sunset", "var(--dusk-dk)"]]) {
       const t = sst.toInstant(h, fr), xa = xCivil(t), xb = L + PW * h / 24;
       svg.appendChild(el("text", { x: (xa + xb) / 2, y: (TOP + BH + BOT) / 2 + 4, "text-anchor": "middle",
         "font-size": 10.5, "letter-spacing": .8, fill: color }, label));
@@ -1493,8 +1502,8 @@ const yearW = (() => {
     { color: "var(--t-naut)", label: "nautical" },
     { color: "var(--t-astro)", label: "astronomical" },
     { color: "var(--t-night)", label: "night" },
-    { color: "var(--gold)", label: "sunrise", line: true },
-    { color: "var(--mauve)", label: "sunset", line: true }
+    { color: "var(--sun-hi)", label: "sunrise", line: true },
+    { color: "var(--dusk-dk)", label: "sunset", line: true }
   ];
 
   const yCivil = (t, tz) => { const p = tzParts(t, tz); return p.h + p.mi / 60 + p.s / 3600; };
@@ -1508,6 +1517,7 @@ const yearW = (() => {
     const Y = (h) => T + PH * (1 - clamp(h, 0, 24) / 24);
     const sstMode = state.yearAxis === "sst";
     const yv = (t) => sstMode ? ySst(t, loc, cfg) : yCivil(t, loc.tz);
+
 
     /* boundary series, innermost first */
     const levels = [
@@ -1533,7 +1543,7 @@ const yearW = (() => {
     area(up[3], up[2], "var(--t-astro)"); area(dn[2], dn[3], "var(--t-astro)");
     area(up[2], up[1], "var(--t-naut)");  area(dn[1], dn[2], "var(--t-naut)");
     area(up[1], up[0], "var(--t-civil)"); area(dn[0], dn[1], "var(--t-civil)");
-    area(up[0], dn[0], "var(--t-day-a)", .78);
+    area(up[0], dn[0], "var(--t-day-a)", 1);
 
     /* rise / set outlines */
     const line = (arr, color, w) => {
@@ -1541,14 +1551,14 @@ const yearW = (() => {
       for (let i = 0; i < n; i++) p += (i ? "L" : "M") + X(i).toFixed(1) + "," + Y(arr[i]).toFixed(1);
       svg.appendChild(el("path", { d: p, fill: "none", stroke: color, "stroke-width": w || 1.4 }));
     };
-    line(up[0], "var(--gold)"); line(dn[0], "var(--mauve)");
+    line(up[0], "var(--sun-hi)"); line(dn[0], "var(--dusk-dk)");
 
     /* axes */
     for (let h = 0; h <= 24; h += 2) {
       const y = Y(h);
       svg.appendChild(el("line", { x1: L, y1: y, x2: L + PW, y2: y, stroke: "#ffffff", opacity: .05 }));
       svg.appendChild(el("text", { x: L - 7, y: y + 3.5, "text-anchor": "end", "font-size": 10, class: "num",
-        fill: (sstMode && (h === 6 || h === 20)) ? "var(--orange)" : "var(--ink-3)" }, pad2(h)));
+        fill: (sstMode && (h === 6 || h === 20)) ? "var(--sun)" : "var(--ink-3)" }, pad2(h)));
     }
     const monthAt = [];
     for (let m = 0; m < 12; m++) {
@@ -1566,7 +1576,7 @@ const yearW = (() => {
 
     marker = el("g");
     marker.appendChild(el("line", { y1: T, y2: T + PH, stroke: "var(--s3)", "stroke-width": 1.4 }));
-    marker.appendChild(el("circle", { r: 4, fill: "var(--s3)", stroke: "var(--soot)", "stroke-width": 1.2 }));
+    marker.appendChild(el("circle", { r: 4, fill: "var(--s3)", stroke: "var(--shade)", "stroke-width": 1.2 }));
     svg.appendChild(marker);
     geo = { X, Y, n, sstMode };
 
@@ -1656,15 +1666,19 @@ const hourW = (() => {
         ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m]));
     }
 
+    const ends = [];
     const series = (get, color, label) => {
       let p = "";
       for (let i = 0; i < n; i++) p += (i ? "L" : "M") + X(i).toFixed(1) + "," + Y(get(days[i]) / 60000).toFixed(1);
       svg.appendChild(el("path", { d: p, fill: "none", stroke: color, "stroke-width": 2, "stroke-linejoin": "round" }));
-      const last = get(days[n - 1]) / 60000;
-      svg.appendChild(el("text", { x: L + PW + 6, y: Y(last) + 3.5, "font-size": 10.5, fill: color }, label));
+      ends.push({ y: Y(get(days[n - 1]) / 60000), color, label });
     };
     series((d) => d.nightHour, "var(--s2)", "night");
     series((d) => d.dayHour, "var(--s1)", "day");
+    ends.sort((a, b) => a.y - b.y);
+    if (ends[1].y - ends[0].y < 13) { ends[0].y -= (13 - (ends[1].y - ends[0].y)) / 2; ends[1].y = ends[0].y + 13; }
+    for (const e of ends)
+      svg.appendChild(el("text", { x: L + PW + 6, y: clamp(e.y, T + 8, T + PH) + 3.5, "font-size": 10.5, fill: e.color }, e.label));
     svg.appendChild(el("rect", { x: L, y: T, width: PW, height: PH, fill: "none", stroke: "var(--rule)" }));
 
     marker = el("line", { y1: T, y2: T + PH, stroke: "var(--s3)", "stroke-width": 1.4 });
@@ -1718,20 +1732,20 @@ const cmpW = (() => {
 
   function miniClock(hours, color) {
     const s = el("svg", { viewBox: "-100 -100 200 200", class: "mini" });
-    s.appendChild(el("circle", { r: 92, fill: "#20242c", stroke: "var(--rule-2)" }));
+    s.appendChild(el("circle", { r: 92, fill: "var(--inner)", stroke: "var(--rule-2)" }));
     for (let h = 0; h < 12; h++) {
       const a = h * 30 * RAD, r0 = h % 3 === 0 ? 72 : 80;
       s.appendChild(el("line", { x1: r0 * Math.sin(a), y1: -r0 * Math.cos(a), x2: 88 * Math.sin(a), y2: -88 * Math.cos(a),
         stroke: h % 3 === 0 ? "var(--ink-3)" : "var(--rule-2)", "stroke-width": h % 3 === 0 ? 2.4 : 1.2 }));
     }
-    for (const [h, c] of [[6, "var(--gold)"], [8, "var(--mauve)"]]) {
+    for (const [h, c] of [[6, "var(--sun-hi)"], [8, "var(--dusk-dk)"]]) {
       const a = h * 30 * RAD;
       s.appendChild(el("circle", { cx: 88 * Math.sin(a), cy: -88 * Math.cos(a), r: 4, fill: c }));
     }
     const ah = 360 * ((hours % 12) / 12), am = 360 * (hours % 1);
     s.appendChild(el("path", { d: "M0,6 L-3.5,0 L0,-52 L3.5,0 Z", fill: color, transform: `rotate(${ah})` }));
-    s.appendChild(el("path", { d: "M0,8 L-2.2,0 L0,-76 L2.2,0 Z", fill: "var(--peach)", transform: `rotate(${am})` }));
-    s.appendChild(el("circle", { r: 4, fill: "var(--soot)", stroke: color, "stroke-width": 1.4 }));
+    s.appendChild(el("path", { d: "M0,8 L-2.2,0 L0,-76 L2.2,0 Z", fill: "var(--sun-pale)", transform: `rotate(${am})` }));
+    s.appendChild(el("circle", { r: 4, fill: "var(--shade)", stroke: color, "stroke-width": 1.4 }));
     return s;
   }
 
@@ -1766,7 +1780,7 @@ const cmpW = (() => {
     }
     for (const h of [6, 20]) {
       const y = Y(h);
-      svg.appendChild(el("line", { x1: L, y1: y, x2: L + PW, y2: y, stroke: "var(--orange)",
+      svg.appendChild(el("line", { x1: L, y1: y, x2: L + PW, y2: y, stroke: "var(--sun)",
         "stroke-width": 1, "stroke-dasharray": "4 4", opacity: .55 }));
     }
     const startH = Math.ceil(t0 / HOURMS) * HOURMS;
@@ -1831,7 +1845,7 @@ const cmpW = (() => {
   legend($("cmpLegend"), [
     { color: "var(--s1)", label: "SST here", line: true },
     { color: "var(--s2)", label: "SST at the reference", line: true },
-    { color: "var(--orange)", label: "horizon crossings", dash: true }
+    { color: "var(--sun)", label: "horizon crossings", dash: true }
   ]);
   return { update, invalidate: () => { update.key = ""; } };
 })();
