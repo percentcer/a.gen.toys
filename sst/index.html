@@ -151,7 +151,8 @@ svg text.num{font-family:var(--mono)}
 .legend .sw{width:11px; height:11px; border:1px solid rgba(255,255,255,.12)}
 .legend .sw.line{height:3px; width:16px}
 .tip{
-  position:fixed; z-index:60; pointer-events:none; opacity:0; transition:opacity .1s;
+  position:fixed; left:0; top:0; will-change:transform;
+  z-index:60; pointer-events:none; opacity:0; transition:opacity .1s;
   background:#15152a; border:1px solid var(--rule-2); border-radius:var(--r);
   padding:8px 10px; font-size:12px; color:var(--ink); max-width:280px;
 }
@@ -421,9 +422,17 @@ function wallToInstant(y, mo, d, h, mi, tz) {
   t = naive - tzOffsetMs(t, tz);
   return naive - tzOffsetMs(t, tz);
 }
+/* Intl.DateTimeFormat construction is expensive and this runs a dozen times a
+   frame, so formatters are memoised per (zone, option-set). */
+const fmtCache = new Map();
 function fmtCivil(ms, tz, opt) {
-  const o = Object.assign({ timeZone: tz, hour: "numeric", minute: "2-digit" }, opt || {});
-  return new Intl.DateTimeFormat("en-GB", o).format(ms);
+  const key = tz + "|" + (opt ? JSON.stringify(opt) : "");
+  let f = fmtCache.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-GB", Object.assign({ timeZone: tz, hour: "numeric", minute: "2-digit" }, opt || {}));
+    fmtCache.set(key, f);
+  }
+  return f.format(ms);
 }
 const fmtClock = (ms, tz) => fmtCivil(ms, tz, { hour: "2-digit", minute: "2-digit", hour12: false });
 const fmtDate = (ms, tz) => fmtCivil(ms, tz, { hour: undefined, minute: undefined, weekday: "short", day: "numeric", month: "short" });
@@ -823,7 +832,8 @@ function showTip(evt, title, rows) {
   let x = evt.clientX + pad, y = evt.clientY + pad;
   if (x + w > innerWidth - 8) x = evt.clientX - w - pad;
   if (y + h > innerHeight - 8) y = evt.clientY - h - pad;
-  tipEl.style.left = x + "px"; tipEl.style.top = y + "px";
+  /* transform rather than left/top: moving the tip stays on the compositor */
+  tipEl.style.transform = "translate3d(" + Math.round(x) + "px," + Math.round(y) + "px,0)";
 }
 const hideTip = () => tipEl.classList.remove("on");
 
@@ -1101,23 +1111,39 @@ const digitalW = (() => {
 
 /* ── 7c. scrubbing plumbing ─────────────────────────────────────────────── */
 let requestRender = () => {};
-function svgPoint(svg, evt) {
-  const r = svg.getBoundingClientRect();
-  const vb = svg.viewBox.baseVal;
-  return { x: (evt.clientX - r.left) / r.width * vb.width, y: (evt.clientY - r.top) / r.height * vb.height };
-}
+/* A pointer can emit several moves per frame and each one costs two forced
+   layouts (the chart's rect, the tooltip's size). Coalesce to one per frame and
+   cache the rect, invalidating it whenever the page can have moved. */
+let rectDirty = true;
+addEventListener("scroll", () => { rectDirty = true; }, { passive: true });
+addEventListener("resize", () => { rectDirty = true; });
+
 function attachScrub(svg, mapper) {
-  const move = (evt) => {
-    const p = svgPoint(svg, evt);
+  let queued = null, scheduled = false, rect = null;
+  const flush = () => {
+    scheduled = false;
+    const evt = queued; queued = null;
+    if (!evt) return;
+    if (!rect || rectDirty) { rect = svg.getBoundingClientRect(); rectDirty = false; }
+    const vb = svg.viewBox.baseVal;
+    const p = { x: (evt.clientX - rect.left) / rect.width * vb.width,
+                y: (evt.clientY - rect.top) / rect.height * vb.height };
     const m = mapper(p, evt);
     if (!m) { hideTip(); return; }
     state.preview = m.instant;
     if (m.title) showTip(evt, m.title, m.rows || []); else hideTip();
     requestRender();
   };
-  svg.addEventListener("pointermove", move);
+  const move = (evt) => {
+    queued = evt;
+    if (!scheduled) { scheduled = true; requestAnimationFrame(flush); }
+  };
+  svg.addEventListener("pointermove", move, { passive: true });
   svg.addEventListener("pointerdown", move);
-  svg.addEventListener("pointerleave", () => { state.preview = null; hideTip(); requestRender(); });
+  svg.addEventListener("pointerleave", () => {
+    queued = null; rect = null;
+    state.preview = null; hideTip(); requestRender();
+  });
   svg.setAttribute("tabindex", "0");
   svg.addEventListener("keydown", (e) => {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
@@ -1728,9 +1754,12 @@ const hourW = (() => {
 const cmpW = (() => {
   const svg = $("offsetChart"), hereEl = $("cmpHere"), thereEl = $("cmpThere");
   const W = 620, H = 300, L = 44, R = 66, T = 14, B = 30, PW = W - L - R, PH = H - T - B;
-  let geo = null, marker = null;
+  let geo = null, marker = null, refsHere = null, refsThere = null;
 
-  function miniClock(hours, color) {
+  /* The panels are built once per location and then only written to. Rebuilding
+     their DOM every frame is what forced the old throttle, and the throttle is
+     what made them lurch while the rest of the page tracked the cursor. */
+  function miniFace(color) {
     const s = el("svg", { viewBox: "-100 -100 200 200", class: "mini" });
     s.appendChild(el("circle", { r: 92, fill: "var(--inner)", stroke: "var(--rule-2)" }));
     for (let h = 0; h < 12; h++) {
@@ -1742,28 +1771,39 @@ const cmpW = (() => {
       const a = h * 30 * RAD;
       s.appendChild(el("circle", { cx: 88 * Math.sin(a), cy: -88 * Math.cos(a), r: 4, fill: c }));
     }
-    const ah = 360 * ((hours % 12) / 12), am = 360 * (hours % 1);
-    s.appendChild(el("path", { d: "M0,6 L-3.5,0 L0,-52 L3.5,0 Z", fill: color, transform: `rotate(${ah})` }));
-    s.appendChild(el("path", { d: "M0,8 L-2.2,0 L0,-76 L2.2,0 Z", fill: "var(--sun-pale)", transform: `rotate(${am})` }));
+    const hourHand = el("path", { d: "M0,6 L-3.5,0 L0,-52 L3.5,0 Z", fill: color });
+    const minHand = el("path", { d: "M0,8 L-2.2,0 L0,-76 L2.2,0 Z", fill: "var(--sun-pale)" });
+    s.appendChild(hourHand); s.appendChild(minHand);
     s.appendChild(el("circle", { r: 4, fill: "var(--shade)", stroke: color, "stroke-width": 1.4 }));
-    return s;
+    return { svg: s, hourHand, minHand };
   }
 
-  function panel(node, loc, t, cfg, color, tag) {
-    const s = sst.at(t, loc, cfg), fr = sst.frame(t, loc, cfg);
-    const f = sst.fmt(s.hours, state.hour12, true);
+  function buildPanel(node, loc, color, tag) {
     node.innerHTML = "";
     const nm = document.createElement("div"); nm.className = "name";
     const chip = document.createElement("span"); chip.className = "chip"; chip.style.background = color;
     nm.appendChild(chip); nm.appendChild(document.createTextNode(loc.name + " · " + tag));
-    const big = document.createElement("div"); big.className = "big"; big.textContent = f.core + (f.suffix ? " " + f.suffix : "");
+    const big = document.createElement("div"); big.className = "big";
     const sm = document.createElement("div"); sm.className = "sm";
-    sm.innerHTML = "civil " + fmtClock(t, loc.tz) + "<br>" +
-      "rise " + fmtClock(fr.rise, loc.tz) + " · set " + fmtClock(fr.set, loc.tz) + "<br>" +
-      "hour " + fmtMinutes(s.hourMs) + " · " + (s.segment === "day" ? "daylight" : "night") + "<br>" +
-      loc.lat.toFixed(2) + "°, " + loc.lon.toFixed(2) + "°";
-    node.appendChild(nm); node.appendChild(big); node.appendChild(sm);
-    node.appendChild(miniClock(s.hours, color));
+    const line = () => { const d = document.createElement("div"); sm.appendChild(d); return d; };
+    const l1 = line(), l2 = line(), l3 = line(), l4 = line();
+    l4.textContent = loc.lat.toFixed(2) + "°, " + loc.lon.toFixed(2) + "°";
+    const clock = miniFace(color);
+    node.appendChild(nm); node.appendChild(big); node.appendChild(sm); node.appendChild(clock.svg);
+    return { key: loc.name + "|" + loc.lat + "|" + loc.lon + "|" + tag, big, l1, l2, l3, clock };
+  }
+
+  const setText = (n, v) => { if (n.textContent !== v) n.textContent = v; };
+
+  function writePanel(refs, loc, t, cfg) {
+    const s = sst.at(t, loc, cfg), fr = sst.frame(t, loc, cfg);
+    const f = sst.fmt(s.hours, state.hour12, true);
+    setText(refs.big, f.core + (f.suffix ? " " + f.suffix : ""));
+    setText(refs.l1, "civil " + fmtClock(t, loc.tz));
+    setText(refs.l2, "rise " + fmtClock(fr.rise, loc.tz) + " · set " + fmtClock(fr.set, loc.tz));
+    setText(refs.l3, "hour " + fmtMinutes(s.hourMs) + " · " + (s.segment === "day" ? "daylight" : "night"));
+    refs.clock.hourHand.setAttribute("transform", "rotate(" + (360 * ((s.hours % 12) / 12)).toFixed(2) + ")");
+    refs.clock.minHand.setAttribute("transform", "rotate(" + (360 * (s.hours % 1)).toFixed(2) + ")");
   }
 
   function build(ctx) {
@@ -1823,8 +1863,14 @@ const cmpW = (() => {
     const key = [ctx.fr.midnight, state.here.name, state.there.name, state.here.lat, state.there.lat,
       state.base, state.elev].join("|");
     if (key !== update.key) { update.key = key; build(ctx); }
-    panel(hereEl, state.here, ctx.t, ctx.cfg, "var(--s1)", "here");
-    panel(thereEl, state.there, ctx.t, ctx.cfg, "var(--s2)", "there");
+
+    const hKey = state.here.name + "|" + state.here.lat + "|" + state.here.lon + "|here";
+    if (!refsHere || refsHere.key !== hKey) refsHere = buildPanel(hereEl, state.here, "var(--s1)", "here");
+    const tKey = state.there.name + "|" + state.there.lat + "|" + state.there.lon + "|there";
+    if (!refsThere || refsThere.key !== tKey) refsThere = buildPanel(thereEl, state.there, "var(--s2)", "there");
+    writePanel(refsHere, state.here, ctx.t, ctx.cfg);
+    writePanel(refsThere, state.there, ctx.t, ctx.cfg);
+
     if (marker && geo) {
       const x = geo.X(clamp(ctx.t, geo.t0, geo.t1));
       marker.setAttribute("x1", x); marker.setAttribute("x2", x);
@@ -1988,7 +2034,7 @@ function makeCtx() {
   const t = shownInstant(), loc = state.here, cfg = cfgFor();
   return { t, loc, cfg, fr: sst.frame(t, loc, cfg), s: sst.at(t, loc, cfg) };
 }
-let lastHeavy = "", lastCmp = 0, lastSync = 0, pending = false;
+let lastHeavy = "", lastSync = 0, pending = false;
 
 function render() {
   pending = false;
@@ -2006,8 +2052,7 @@ function render() {
   if (ctx.heavy) rulerW.table(ctx);
   yearW.update(ctx);
   hourW.update(ctx);
-  const now = performance.now();
-  if (ctx.heavy || now - lastCmp > 220) { lastCmp = now; cmpW.update(ctx); }
+  cmpW.update(ctx);
 
   const badge = $("live"), txt = $("liveTxt");
   if (state.preview !== null) {
@@ -2019,9 +2064,14 @@ function render() {
   }
   if (state.live && Date.now() - lastSync > 20000) { lastSync = Date.now(); syncWhen(false); }
 }
-requestRender = () => { if (!pending) { pending = true; requestAnimationFrame(render); } };
+/* one render per frame, driven by the single rAF loop below — a scheduled
+   render on top of the loop just paid for the same work twice */
+requestRender = () => { pending = true; };
 
-function tick() { render(); requestAnimationFrame(tick); }
+function tick() {
+  if (pending || state.live) { pending = false; render(); }
+  requestAnimationFrame(tick);
+}
 syncWhen(true);
 requestAnimationFrame(tick);
 </script>
