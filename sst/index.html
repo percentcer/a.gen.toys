@@ -31,21 +31,14 @@
 
   --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
   --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  --r:14px;
+  --r:2px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{
-  background:#191d20;
+  background:#1b1f22;
   color:var(--ink); font-family:var(--sans); font-size:14px; line-height:1.45;
   -webkit-font-smoothing:antialiased;
-}
-body::before{
-  content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
-  background:
-    radial-gradient(1200px 620px at 12% -10%, #2b1d30 0%, rgba(43,29,48,0) 62%),
-    radial-gradient(1000px 520px at 100% 0%, #2a2436 0%, rgba(42,36,54,0) 58%),
-    linear-gradient(180deg,#21181b 0%, #1b1f22 48%, #191d20 100%);
 }
 h1,h2,h3{margin:0; font-weight:600; letter-spacing:.2px}
 a{color:var(--gold)}
@@ -54,46 +47,40 @@ a{color:var(--gold)}
 /* ── masthead ─────────────────────────────────────────── */
 header.mast{padding:34px 0 18px}
 .mast .title{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap}
-.mast h1{font-size:30px; background:linear-gradient(92deg,var(--gold),var(--orange) 44%,var(--clay) 78%,var(--peri));
-  -webkit-background-clip:text; background-clip:text; color:transparent}
-.mast .sub{color:var(--ink-3); font-size:13px}
-.rule-line{margin-top:14px; color:var(--ink-2); font-size:13.5px; max-width:76ch}
-.rule-line b{color:var(--peach); font-weight:600}
+.mast h1{font-size:30px; color:var(--gold)}
 
 /* ── controls ─────────────────────────────────────────── */
 .controls{
   position:sticky; top:0; z-index:40; margin:18px 0 22px;
-  background:rgba(27,31,34,.86); backdrop-filter:blur(14px);
+  background:#191c1f;
   border:1px solid var(--rule); border-radius:var(--r); padding:12px 14px;
   display:flex; gap:18px; flex-wrap:wrap; align-items:flex-end;
-  box-shadow:0 10px 30px rgba(0,0,0,.35);
 }
 .ctl{display:flex; flex-direction:column; gap:5px; min-width:0}
 .ctl > label{font-size:10.5px; letter-spacing:.9px; text-transform:uppercase; color:var(--ink-3)}
 .ctl .row{display:flex; gap:6px; align-items:center}
 select,input[type=text],input[type=number],input[type=datetime-local]{
   background:#171a1e; color:var(--ink); border:1px solid var(--rule);
-  border-radius:8px; padding:6px 8px; font-family:var(--sans); font-size:13px; min-width:0;
+  border-radius:var(--r); padding:6px 8px; font-family:var(--sans); font-size:13px; min-width:0;
 }
 select:focus,input:focus{outline:2px solid var(--peri); outline-offset:1px}
 input[type=number]{width:74px} input[type=text].coord{width:82px; font-family:var(--mono)}
 button{
-  background:#221d26; color:var(--ink); border:1px solid var(--rule); border-radius:8px;
+  background:#221d26; color:var(--ink); border:1px solid var(--rule); border-radius:var(--r);
   padding:6px 10px; font-size:12.5px; cursor:pointer; font-family:var(--sans);
 }
 button:hover{background:#2c2431; border-color:var(--rule-2)}
 button:focus-visible{outline:2px solid var(--peri); outline-offset:1px}
-.seg{display:inline-flex; border:1px solid var(--rule); border-radius:8px; overflow:hidden}
+.seg{display:inline-flex; border:1px solid var(--rule); border-radius:var(--r); overflow:hidden}
 .seg button{border:0; border-radius:0; background:transparent; padding:6px 11px; color:var(--ink-3)}
 .seg button + button{border-left:1px solid var(--rule)}
-.seg button[aria-pressed=true]{background:linear-gradient(180deg,#3a2b3a,#2a2030); color:var(--peach)}
+.seg button[aria-pressed=true]{background:#33263a; color:var(--peach)}
 .spacer{flex:1 1 auto}
 .livebadge{display:inline-flex; align-items:center; gap:7px; font-size:12px; color:var(--ink-2);
-  border:1px solid var(--rule); border-radius:999px; padding:5px 11px; white-space:nowrap}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--s1); box-shadow:0 0 0 0 rgba(219,116,36,.6); animation:pulse 2.4s infinite}
+  border:1px solid var(--rule); border-radius:var(--r); padding:5px 11px; white-space:nowrap}
+.dot{width:7px;height:7px;background:var(--s1)}
 .livebadge.scrub{border-color:var(--gold); color:var(--gold)}
-.livebadge.scrub .dot{background:var(--gold); animation:none}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(219,116,36,.55)}70%{box-shadow:0 0 0 9px rgba(219,116,36,0)}100%{box-shadow:0 0 0 0 rgba(219,116,36,0)}}
+.livebadge.scrub .dot{background:var(--gold)}
 
 /* ── layout ───────────────────────────────────────────── */
 .grid{display:grid; gap:16px}
@@ -103,7 +90,7 @@ button:focus-visible{outline:2px solid var(--peri); outline-offset:1px}
 @media (max-width:1080px){ .row-now,.row-year{grid-template-columns:1fr} }
 
 .card{
-  background:linear-gradient(180deg, rgba(41,29,43,.72), rgba(33,35,42,.72));
+  background:#211d26;
   border:1px solid var(--rule); border-radius:var(--r); padding:14px 16px 16px;
   position:relative; overflow:hidden;
 }
@@ -113,15 +100,13 @@ button:focus-visible{outline:2px solid var(--peri); outline-offset:1px}
 .card .tools{margin-left:auto; display:flex; gap:6px; align-items:center}
 .sec-title{margin:26px 0 10px; font-size:12px; letter-spacing:1.4px; text-transform:uppercase; color:var(--ink-3);
   display:flex; align-items:center; gap:12px}
-.sec-title:after{content:""; flex:1; height:1px; background:linear-gradient(90deg,var(--rule),transparent)}
+.sec-title:after{content:""; flex:1; height:1px; background:var(--rule)}
 
 /* ── clock card ───────────────────────────────────────── */
 .clockwrap{display:flex; flex-direction:column; align-items:center; gap:10px}
 #clock{max-width:360px; margin:0 auto}
 figure.scroll{overflow-x:auto}
 figure.scroll > svg{min-width:720px}
-.clock-note{font-size:11.5px; color:var(--ink-3); text-align:center; min-height:2.6em; padding:0 4px}
-.clock-note b{color:var(--ink-2); font-weight:600}
 
 /* ── digital ──────────────────────────────────────────── */
 .digital{font-family:var(--mono); font-size:clamp(34px,5.4vw,56px); line-height:1;
@@ -131,7 +116,7 @@ figure.scroll > svg{min-width:720px}
 .readouts{margin-top:14px; display:grid; grid-template-columns:auto 1fr; gap:5px 14px; font-size:12.5px}
 .readouts dt{color:var(--ink-3)}
 .readouts dd{margin:0; font-family:var(--mono); color:var(--ink)}
-.badge{display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px;
+.badge{display:inline-block; font-size:11px; padding:2px 8px; border-radius:var(--r);
   border:1px solid var(--rule-2); color:var(--peri)}
 .badge.warn{border-color:var(--ember); color:var(--ember)}
 .badge.day{border-color:var(--gold); color:var(--gold)}
@@ -139,13 +124,13 @@ figure.scroll > svg{min-width:720px}
 
 /* ── stats ────────────────────────────────────────────── */
 .stats{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-.stat{background:rgba(25,29,32,.55); border:1px solid var(--rule); border-radius:10px; padding:9px 11px}
+.stat{background:#191d20; border:1px solid var(--rule); border-radius:var(--r); padding:9px 11px}
 .stat .k{font-size:10.5px; letter-spacing:.7px; text-transform:uppercase; color:var(--ink-3)}
 .stat .v{font-family:var(--mono); font-size:17px; color:var(--ink); margin-top:2px}
 .stat .v small{font-size:11px; color:var(--ink-3); font-family:var(--sans)}
 .stat .d{font-size:11px; color:var(--ink-3); margin-top:2px}
 .stat.wide{grid-column:1/-1}
-.stat.alert{border-color:var(--ember); background:rgba(172,47,69,.16)}
+.stat.alert{border-color:var(--ember); background:#2a1a20}
 .stat.alert .v{color:var(--ember)}
 
 /* ── charts ───────────────────────────────────────────── */
@@ -155,12 +140,12 @@ svg text{font-family:var(--sans); fill:var(--ink-3)}
 svg text.num{font-family:var(--mono)}
 .legend{display:flex; gap:14px; flex-wrap:wrap; font-size:11.5px; color:var(--ink-2); margin-top:8px}
 .legend .it{display:inline-flex; align-items:center; gap:6px}
-.legend .sw{width:11px; height:11px; border-radius:3px; border:1px solid rgba(255,255,255,.12)}
-.legend .sw.line{height:3px; border-radius:2px; width:16px}
+.legend .sw{width:11px; height:11px; border:1px solid rgba(255,255,255,.12)}
+.legend .sw.line{height:3px; width:16px}
 .tip{
   position:fixed; z-index:60; pointer-events:none; opacity:0; transition:opacity .1s;
-  background:rgba(23,20,26,.97); border:1px solid var(--rule-2); border-radius:9px;
-  padding:8px 10px; font-size:12px; color:var(--ink); box-shadow:0 12px 28px rgba(0,0,0,.5); max-width:280px;
+  background:#17141a; border:1px solid var(--rule-2); border-radius:var(--r);
+  padding:8px 10px; font-size:12px; color:var(--ink); max-width:280px;
 }
 .tip.on{opacity:1}
 .tip .t{font-family:var(--mono); color:var(--peach); margin-bottom:4px}
@@ -178,9 +163,9 @@ details.tbl summary:hover{color:var(--ink-2)}
 /* ── compare ──────────────────────────────────────────── */
 .cmp{display:grid; grid-template-columns:repeat(2,minmax(200px,1fr)) minmax(300px,1.5fr); gap:16px; align-items:start}
 @media (max-width:1080px){ .cmp{grid-template-columns:1fr 1fr} .cmp .cmp-chart{grid-column:1/-1} }
-.cmp-loc{background:rgba(25,29,32,.5); border:1px solid var(--rule); border-radius:10px; padding:12px}
+.cmp-loc{background:#191d20; border:1px solid var(--rule); border-radius:var(--r); padding:12px}
 .cmp-loc .name{font-size:13px; color:var(--ink); display:flex; align-items:center; gap:7px}
-.cmp-loc .name .chip{width:9px;height:9px;border-radius:3px}
+.cmp-loc .name .chip{width:9px;height:9px}
 .cmp-loc .big{font-family:var(--mono); font-size:26px; color:var(--peach); margin:6px 0 2px}
 .cmp-loc .sm{font-size:11.5px; color:var(--ink-3); font-family:var(--mono)}
 .cmp-loc .mini{margin:8px auto 0; width:118px}
@@ -198,13 +183,7 @@ details.tbl summary:hover{color:var(--ink-2)}
 <header class="mast">
   <div class="title">
     <h1>Sunset Standard Time</h1>
-    <span class="sub">a clock with only two fixed points</span>
   </div>
-  <p class="rule-line">
-    One rule: the sun rises at <b>6:00</b> and sets at <b>20:00</b>, everywhere, every day.
-    Everything else &mdash; the length of an hour, the length of a second, where noon falls,
-    what happens at the poles &mdash; is a consequence, not a choice.
-  </p>
 </header>
 
 <div class="controls" role="region" aria-label="Settings">
@@ -264,7 +243,6 @@ details.tbl summary:hover{color:var(--ink-2)}
     <div class="clockwrap">
       <svg id="clock" viewBox="-170 -170 340 340" role="img" aria-labelledby="clockDesc"></svg>
       <desc id="clockDesc" class="sr">Analogue clock showing Sunset Standard Time</desc>
-      <div class="clock-note" id="clockNote"></div>
     </div>
   </section>
 
@@ -288,11 +266,10 @@ details.tbl summary:hover{color:var(--ink-2)}
       <dt>SST day</dt><dd id="rSpan">&mdash;</dd>
       <dt>SST second</dt><dd id="rSec">&mdash;</dd>
     </dl>
-    <p style="margin:14px 0 0;font-size:11.5px;color:var(--ink-3)" id="dNote"></p>
   </section>
 
-  <section class="card" aria-label="Consequences">
-    <h2>Consequences <span class="hint">derived, not chosen</span></h2>
+  <section class="card" aria-label="Stat sheet">
+    <h2>Stat Sheet</h2>
     <div class="stats" id="stats"></div>
   </section>
 </div>
@@ -300,8 +277,7 @@ details.tbl summary:hover{color:var(--ink-2)}
 <div class="sec-title">Today</div>
 <div class="grid">
   <section class="card" aria-label="Sun altitude through the day">
-    <h2>Sun through the day
-      <span class="hint" id="dayCurveHint"></span>
+    <h2>Solar Altitude
       <span class="tools">
         <span class="seg" role="group" aria-label="Horizontal axis">
           <button id="axCivil" aria-pressed="true">Civil axis</button>
@@ -315,7 +291,7 @@ details.tbl summary:hover{color:var(--ink-2)}
   </section>
 
   <section class="card" aria-label="Civil hours against SST hours">
-    <h2>Civil hours vs SST hours <span class="hint">same instant, two rulers &mdash; the tie lines show the stretch</span></h2>
+    <h2>Civil hours vs SST hours</h2>
     <figure class="scroll"><svg id="ruler" viewBox="0 0 1100 230" role="img"
       aria-label="Dual ruler comparing civil clock hours with SST hours"></svg></figure>
     <details class="tbl"><summary>Table of SST hour boundaries</summary><div id="rulerTable"></div></details>
@@ -350,7 +326,6 @@ details.tbl summary:hover{color:var(--ink-2)}
 <div class="sec-title">Compare</div>
 <div class="grid row-cmp">
   <section class="card" aria-label="Comparison with a reference location">
-    <h2>Two places, two Sunset Standard Times <span class="hint">no time zones involved &mdash; only the sun</span></h2>
     <div class="cmp">
       <div class="cmp-loc" id="cmpHere"></div>
       <div class="cmp-loc" id="cmpThere"></div>
@@ -874,7 +849,7 @@ function dataTable(node, cols, rows) {
    ══════════════════════════════════════════════════════════════════════════ */
 /* ── 7a. analogue clock ─────────────────────────────────────────────────── */
 const clockW = (() => {
-  const svg = $("clock"), note = $("clockNote");
+  const svg = $("clock");
   const P = (r, deg) => [r * Math.sin(deg * RAD), -r * Math.cos(deg * RAD)];
   const arcPath = (r, a0, a1) => {
     const [x0, y0] = P(r, a0), [x1, y1] = P(r, a1);
@@ -883,22 +858,9 @@ const clockW = (() => {
   };
   let dialKey = "", hands = null;
 
-  function defs() {
-    const d = el("defs");
-    const g1 = el("radialGradient", { id: "faceDay", cx: "50%", cy: "38%", r: "72%" });
-    g1.appendChild(el("stop", { offset: "0%", "stop-color": "#3a2c2b" }));
-    g1.appendChild(el("stop", { offset: "100%", "stop-color": "#221c22" }));
-    const g2 = el("radialGradient", { id: "faceNight", cx: "50%", cy: "38%", r: "72%" });
-    g2.appendChild(el("stop", { offset: "0%", "stop-color": "#252a3a" }));
-    g2.appendChild(el("stop", { offset: "100%", "stop-color": "#1a1a24" }));
-    d.appendChild(g1); d.appendChild(g2);
-    return d;
-  }
-
   function buildDial(fr, seg) {
     clear(svg);
-    svg.appendChild(defs());
-    svg.appendChild(el("circle", { r: 158, fill: seg === "day" ? "url(#faceDay)" : "url(#faceNight)",
+    svg.appendChild(el("circle", { r: 158, fill: seg === "day" ? "#2b2224" : "#1e2130",
       stroke: "var(--rule)", "stroke-width": 1 }));
 
     const g = el("g");
@@ -912,7 +874,7 @@ const clockW = (() => {
     const hourHand = el("path", { d: "M0,10 L-5,0 L0,-92 L5,0 Z", fill: "var(--peach)", stroke: "none" });
     const minHand = el("path", { d: "M0,14 L-3.4,0 L0,-128 L3.4,0 Z", fill: "var(--gold)", stroke: "none" });
     const secHand = el("g");
-    secHand.appendChild(el("line", { x1: 0, y1: 22, x2: 0, y2: -138, stroke: "var(--s3)", "stroke-width": 1.4, "stroke-linecap": "round" }));
+    secHand.appendChild(el("line", { x1: 0, y1: 22, x2: 0, y2: -138, stroke: "var(--s3)", "stroke-width": 1.4 }));
     hg.appendChild(hourHand); hg.appendChild(minHand); hg.appendChild(secHand);
     hg.appendChild(el("circle", { r: 6.5, fill: "var(--card-2)", stroke: "var(--s3)", "stroke-width": 1.6 }));
     hg.appendChild(el("circle", { r: 1.8, fill: "var(--s3)" }));
@@ -1034,22 +996,6 @@ const clockW = (() => {
     hands.minHand.setAttribute("transform", `rotate(${am.toFixed(3)})`);
     hands.secHand.setAttribute("transform", `rotate(${as.toFixed(3)})`);
     hands.phase.textContent = s.segment === "day" ? "DAYLIGHT" : (s.which === "pre-dawn" ? "BEFORE DAWN" : "AFTER DUSK");
-
-    if (state.clockMode === "A") {
-      const rev = clamp(Math.floor((t - fr.midnight) / (12 * HOURMS)), 0, 1);
-      const t0 = fr.midnight + rev * 12 * HOURMS;
-      const a = sst.at(t0, state.here, cfgFor()).hours;
-      const b = sst.at(Math.min(t0 + 12 * HOURMS - 1, fr.nextMidnight - 1), state.here, cfgFor()).hours;
-      note.innerHTML = "An ordinary 12-hour movement, set at SST midnight — only the dial is re-printed. " +
-        "The lit ring is the <b>" + (rev ? "second" : "first") + " revolution</b>, covering SST " +
-        sst.fmt(a, false, false).core + "–" + sst.fmt(b, false, false).core +
-        ". Marks crowd together where SST hours are short.";
-    } else {
-      const ratio = HOURMS / s.hourMs;
-      note.innerHTML = "An ordinary dial — the <b>hands</b> stretch. One SST hour takes " +
-        fmtMinutes(s.hourMs) + ", so the hands run at <b>" + ratio.toFixed(3) + "×</b> the speed of a civil clock. " +
-        "Sunrise is always at 6, sunset always at 8.";
-    }
   }
   return { update, invalidate: () => { dialKey = ""; } };
 })();
@@ -1093,9 +1039,6 @@ const digitalW = (() => {
     $("rSpan").textContent = fmtDur(fr.nextMidnight - fr.midnight) + "  ·  " + fmtClock(fr.midnight, loc.tz)
       + " → " + fmtClock(fr.nextMidnight, loc.tz);
     $("rSec").textContent = (s.hourMs / 3600000).toFixed(4) + " s";
-    $("dNote").innerHTML = state.hour12
-      ? "SST am runs 00:00–12:00 and pm 12:00–24:00, so noon here is <b>not</b> the sun's meridian."
-      : "An SST second is 1/3600 of the current SST hour, so it stretches with everything else.";
 
     /* consequence cards — only when something structural moved */
     if (!ctx.heavy) return;
@@ -1143,9 +1086,6 @@ const digitalW = (() => {
         "Fourteen day hours and ten night hours still have to fit. One of them is now vanishingly short.",
         "wide alert"));
     }
-    statsEl.appendChild(card("Time zones used", "0",
-      "SST is computed from your coordinates and the sun. The civil times on this page are the only thing that needs a zone.",
-      "wide"));
   }
   return { update };
 })();
@@ -1182,7 +1122,7 @@ function attachScrub(svg, mapper) {
 
 /* ── 7d. sun through the day ────────────────────────────────────────────── */
 const dayCurveW = (() => {
-  const svg = $("dayCurve"), hint = $("dayCurveHint");
+  const svg = $("dayCurve");
   const W = 1100, H = 320, L = 52, R = 22, T = 16, B = 38;
   const PW = W - L - R, PH = H - T - B;
   let cache = null, live = null;
@@ -1212,13 +1152,13 @@ const dayCurveW = (() => {
       : (t) => { const s = sst.at(t, loc, cfgFor()); let h = s.hours; if (t >= fr.set && h < 12) h += 24; if (t < fr.rise && h >= 12) h -= 24; return L + PW * clamp(h, 0, 24) / 24; };
 
     const defs = el("defs");
-    const gd = el("linearGradient", { id: "dayFill", x1: 0, y1: 0, x2: 0, y2: 1 });
-    gd.appendChild(el("stop", { offset: "0%", "stop-color": "var(--t-day-a)", "stop-opacity": .55 }));
-    gd.appendChild(el("stop", { offset: "100%", "stop-color": "var(--t-day-b)", "stop-opacity": .06 }));
-    defs.appendChild(gd);
     const clip = el("clipPath", { id: "dayClip" });
     clip.appendChild(el("rect", { x: L, y: T, width: PW, height: PH }));
     defs.appendChild(clip);
+    /* the daylight fill must stop at the horizon, not follow the curve underground */
+    const clipAbove = el("clipPath", { id: "dayAbove" });
+    clipAbove.appendChild(el("rect", { x: L, y: T, width: PW, height: Math.max(0, yOf(0) - T) }));
+    defs.appendChild(clipAbove);
     svg.appendChild(defs);
 
     const g = el("g", { "clip-path": "url(#dayClip)" });
@@ -1240,7 +1180,8 @@ const dayCurveW = (() => {
     const y0px = yOf(0);
     dFill = dLine + "L" + xOfT(pts[pts.length - 1].t).toFixed(1) + "," + y0px.toFixed(1)
           + "L" + xOfT(pts[0].t).toFixed(1) + "," + y0px.toFixed(1) + "Z";
-    g.appendChild(el("path", { d: dFill, fill: "url(#dayFill)", stroke: "none" }));
+    g.appendChild(el("path", { d: dFill, fill: "var(--t-day-a)", opacity: .32, stroke: "none",
+      "clip-path": "url(#dayAbove)" }));
     g.appendChild(el("path", { d: dLine, fill: "none", stroke: "var(--peach)", "stroke-width": 2,
       "stroke-linejoin": "round" }));
 
@@ -1314,9 +1255,6 @@ const dayCurveW = (() => {
 
     cache = { t0, t1, xOfT, yOf, yLo, yHi };
     live = { cross, sunG, lbl };
-    hint.textContent = state.dayAxis === "civil"
-      ? "civil clock along the bottom — the curve is the real thing"
-      : "SST along the bottom — rise pins to 6, set pins to 20, and the curve buckles";
   }
 
   function update(ctx) {
@@ -1421,9 +1359,9 @@ const rulerW = (() => {
 
     /* labels */
     svg.appendChild(el("text", { x: L, y: 13, "font-size": 10.5, "letter-spacing": 1.4, fill: "var(--s3)" },
-      "CIVIL CLOCK — evenly spaced hours"));
+      "CIVIL CLOCK"));
     svg.appendChild(el("text", { x: L, y: H - 4, "font-size": 10.5, "letter-spacing": 1.4, fill: "var(--s1)" },
-      "SUNSET STANDARD TIME — evenly spaced hours"));
+      "SUNSET STANDARD TIME"));
     for (let t = startH; t <= t1; t += 2 * HOURMS) {
       const x = xCivil(t);
       svg.appendChild(el("line", { x1: x, y1: TOP - 7, x2: x, y2: TOP, stroke: "var(--rule-2)" }));
@@ -1633,12 +1571,6 @@ const yearW = (() => {
     geo = { X, Y, n, sstMode };
 
     legend($("yearLegend"), LEGEND);
-    const note = document.createElement("span");
-    note.className = "it"; note.style.color = "var(--ink-3)";
-    note.textContent = sstMode
-      ? "daylight is flat at 06:00–20:00 on every day of the year — that is the whole rule"
-      : "any step in the bands is a daylight-saving jump in the civil clock";
-    $("yearLegend").appendChild(note);
   }
 
   function update(ctx) {
@@ -1836,8 +1768,6 @@ const cmpW = (() => {
       const y = Y(h);
       svg.appendChild(el("line", { x1: L, y1: y, x2: L + PW, y2: y, stroke: "var(--orange)",
         "stroke-width": 1, "stroke-dasharray": "4 4", opacity: .55 }));
-      svg.appendChild(el("text", { x: L + 5, y: y - 4, "font-size": 9.5, fill: "var(--orange)" },
-        h === 6 ? "06:00 — sunrise, wherever you are" : "20:00 — sunset, wherever you are"));
     }
     const startH = Math.ceil(t0 / HOURMS) * HOURMS;
     for (let t = startH; t <= t1; t += 3 * HOURMS) {
@@ -1901,7 +1831,7 @@ const cmpW = (() => {
   legend($("cmpLegend"), [
     { color: "var(--s1)", label: "SST here", line: true },
     { color: "var(--s2)", label: "SST at the reference", line: true },
-    { color: "var(--orange)", label: "the two fixed points", dash: true }
+    { color: "var(--orange)", label: "horizon crossings", dash: true }
   ]);
   return { update, invalidate: () => { update.key = ""; } };
 })();
