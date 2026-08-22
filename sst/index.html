@@ -1126,24 +1126,18 @@ const digitalW = (() => {
     /* consequence cards — only when something structural moved */
     if (!ctx.heavy) return;
     clear(statsEl);
-    const sstNoon = sst.toInstant(12, fr), sstMidnight = fr.midnight;
-    const dNoon = sstNoon - d.noon, dMid = sstMidnight - fr.prevDay.antinoon;
     const rate = HOURMS / s.hourMs;
 
     statsEl.appendChild(card("Day hour", fmtMinutes(fr.dayHour),
       "daylight " + fmtDur(d.daylight) + " ÷ 14"));
     statsEl.appendChild(card("Night hour", fmtMinutes(fr.nightHourPost),
-      "after dusk; " + fmtMinutes(fr.nightHourPre) + " before dawn"));
-    statsEl.appendChild(card("Clock rate", rate.toFixed(3) + "×",
-      rate > 1 ? "SST is running fast" : rate < 1 ? "SST is running slow" : "in step with civil time"));
+      "after dusk, SST 20:00–24:00"));
+    statsEl.appendChild(card("Wee hour", fmtMinutes(fr.nightHourPre),
+      "before dawn, SST 00:00–06:00"));
     statsEl.appendChild(card("Hour ratio", (fr.nightHourPost / fr.dayHour).toFixed(3) + "×",
       "night hour ÷ day hour"));
-    statsEl.appendChild(card("SST noon", fmtClock(sstNoon, loc.tz),
-      "solar noon " + fmtClock(d.noon, loc.tz) + " — <b>" + fmtDur(Math.abs(dNoon)) + "</b> "
-      + (dNoon < 0 ? "earlier" : "later"), "wide"));
-    statsEl.appendChild(card("SST midnight", fmtClock(sstMidnight, loc.tz),
-      "solar midnight " + fmtClock(fr.prevDay.antinoon, loc.tz) + " — <b>" + fmtDur(Math.abs(dMid)) + "</b> "
-      + (dMid < 0 ? "earlier" : "later"), "wide"));
+    statsEl.appendChild(card("Clock rate", rate.toFixed(3) + "×",
+      rate > 1 ? "SST is running fast" : rate < 1 ? "SST is running slow" : "in step with civil time", "wide"));
 
     if (d.fallback) {
       statsEl.appendChild(card("Horizon not crossed", d.fallback,
