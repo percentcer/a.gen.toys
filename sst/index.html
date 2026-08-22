@@ -1427,52 +1427,78 @@ const rulerW = (() => {
   const tintFor = (alt, anchor) => alt >= anchor ? "var(--t-day-a)" : alt >= -6 ? "var(--t-civil)"
     : alt >= -12 ? "var(--t-naut)" : alt >= -18 ? "var(--t-astro)" : "var(--t-night)";
 
+  /* the bar spans one civil day, midnight to midnight, so the civil ruler's ends
+     are nailed to the edges; whatever SST is doing gets clipped by that window */
+  function civilWindow(t, loc) {
+    const a = tzParts(t, loc.tz);
+    const t0 = wallToInstant(a.y, a.mo, a.d, 0, 0, loc.tz);
+    const b = tzParts(t0 + 36 * HOURMS, loc.tz);
+    return { t0, t1: wallToInstant(b.y, b.mo, b.d, 0, 0, loc.tz) };
+  }
+
   function build(ctx) {
-    const { fr, loc } = ctx;
+    const { loc } = ctx;
     metrics();
     clear(svg);
-    const t0 = fr.midnight, t1 = fr.nextMidnight;
-    const xCivil = (t) => L + PW * (t - t0) / (t1 - t0);
-    const xSst = (t) => {
-      const s = sst.at(t, loc, cfgFor());
-      let h = s.hours;
-      if (t >= fr.set && h < 12) h += 24;
-      if (t < fr.rise && h >= 12) h -= 24;
-      return L + PW * clamp(h, 0, 24) / 24;
-    };
+    const cfg = cfgFor();
+    const { t0, t1 } = civilWindow(ctx.t, loc);
+    const xOf = (t) => L + PW * (t - t0) / (t1 - t0);
 
-    /* tinted bands — each ruler is sampled evenly in its own units, then runs of the
-       same tint are merged into one rect so no seams show through */
     const seg = 720;
-    const bandRuns = (xAt, tAt, y) => {
-      let runStart = 0, runC = null, runOp = 0;
+    const bandRuns = (y) => {
+      let runStart = 0, runC = null;
       const flush = (i) => {
         if (runC === null) return;
-        const xa = xAt(runStart), xb = xAt(i);
-        svg.appendChild(el("rect", { x: xa, y, width: Math.max(0.5, xb - xa), height: BH, fill: runC, opacity: runOp }));
+        const xa = L + PW * runStart / seg, xb = L + PW * i / seg;
+        svg.appendChild(el("rect", { x: xa, y, width: Math.max(0.5, xb - xa), height: BH, fill: runC }));
       };
+      const anchor = events.day(lerp(t0, t1, .5), loc, cfg).anchor;
       for (let i = 0; i < seg; i++) {
-        const alt = solar.altitude(tAt((i + 0.5) / seg), loc.lat, loc.lon);
-        const c = tintFor(alt, fr.day.anchor), op = 1;
-        if (c !== runC) { flush(i); runStart = i; runC = c; runOp = op; }
+        const c = tintFor(solar.altitude(lerp(t0, t1, (i + 0.5) / seg), loc.lat, loc.lon), anchor);
+        if (c !== runC) { flush(i); runStart = i; runC = c; }
       }
       flush(seg);
     };
-    bandRuns((i) => xCivil(lerp(t0, t1, i / seg)), (f) => lerp(t0, t1, f), TOP);
-    bandRuns((i) => L + PW * i / seg, (f) => sst.toInstant(Math.min(f * 24, 23.9999), fr), BOT);
+    bandRuns(TOP);
+    bandRuns(BOT);
+
+    /* every SST hour boundary that lands inside the civil day; the SST ruler's own
+       midnight may sit anywhere in here, or be clipped off the end entirely */
+    const marks = [], seen = new Set();
+    for (const f of [sst.frame(t0 + 1000, loc, cfg), sst.frame(t1 - 1000, loc, cfg)]) {
+      if (!f) continue;
+      for (let h = 0; h < 24; h++) {
+        const tt = sst.toInstant(h, f), k = Math.round(tt / 1000);
+        if (tt >= t0 && tt <= t1 && !seen.has(k)) { seen.add(k); marks.push({ h, t: tt }); }
+      }
+    }
+    marks.sort((a, b) => a.t - b.t);
+
+    /* cells: 24 identical ones above, stretched ones below */
+    const civilHours = [];
+    for (let t = t0; t < t1 - 1000; t += HOURMS) civilHours.push(t);
+    for (const t of civilHours.slice(1))
+      svg.appendChild(el("line", { x1: xOf(t), y1: TOP, x2: xOf(t), y2: TOP + BH,
+        stroke: "#ffffff", "stroke-width": .8, opacity: .26 }));
+    for (const m of marks) {
+      const sun = m.h === 6 || m.h === 20, x = xOf(m.t);
+      svg.appendChild(el("line", { x1: x, y1: BOT, x2: x, y2: BOT + BH,
+        stroke: sun ? "var(--sun)" : (m.h === 0 ? "var(--s1)" : "#ffffff"),
+        "stroke-width": sun ? 1.6 : (m.h === 0 ? 1.6 : .8), opacity: sun || m.h === 0 ? 1 : .26 }));
+    }
     svg.appendChild(el("rect", { x: L, y: TOP, width: PW, height: BH, fill: "none", stroke: "var(--rule)" }));
     svg.appendChild(el("rect", { x: L, y: BOT, width: PW, height: BH, fill: "none", stroke: "var(--rule)" }));
 
-    /* tie lines at every SST hour and every civil hour */
-    const tie = (t, color, w, op) => {
-      svg.appendChild(el("line", { x1: xCivil(t), y1: TOP + BH, x2: xSst(t), y2: BOT,
-        stroke: color, "stroke-width": w, opacity: op }));
-    };
-    const startH = Math.ceil(t0 / HOURMS) * HOURMS;
-    for (let t = startH; t <= t1; t += HOURMS) tie(t, "var(--rule-2)", .8, .5);
-    for (let h = 0; h <= 24; h++) {
-      const t = h === 24 ? t1 - 1 : sst.toInstant(h, fr);
-      tie(t, (h === 6 || h === 20) ? "var(--sun)" : "var(--s1)", (h === 6 || h === 20) ? 1.6 : 1, .75);
+    /* diagonals map each hour number across: civil 8 o'clock to SST 8 o'clock */
+    for (const t of civilHours) {
+      const hc = tzParts(t, loc.tz).h, hit = marks.find((m) => m.h === hc);
+      if (!hit || Math.abs(hit.t - t) > 6 * HOURMS) continue;
+      const sun = hc === 6 || hc === 20, xa = xOf(t), xb = xOf(hit.t);
+      svg.appendChild(el("line", { x1: xa, y1: TOP + BH, x2: xb, y2: BOT,
+        stroke: sun ? (hc === 6 ? "var(--sun-hi)" : "var(--dusk-dk)") : "var(--s1)",
+        "stroke-width": sun ? 1.6 : 1, opacity: sun ? 1 : .6 }));
+      if (sun) svg.appendChild(el("text", { x: xb + 5, y: BOT - 6, "font-size": 10.5, "letter-spacing": .8,
+        fill: hc === 6 ? "var(--sun-hi)" : "var(--dusk-dk)" }, hc === 6 ? "sunrise" : "sunset"));
     }
 
     /* labels */
@@ -1480,53 +1506,41 @@ const rulerW = (() => {
       "CIVIL CLOCK"));
     svg.appendChild(el("text", { x: L, y: H - 4, "font-size": 10.5, "letter-spacing": 1.4, fill: "var(--s1)" },
       "SUNSET STANDARD TIME"));
-    for (let t = startH; t <= t1; t += xStep * HOURMS) {
-      const x = xCivil(t);
+    for (const t of civilHours.concat([t1])) {
+      if (tzParts(t, loc.tz).h % xStep !== 0 && t !== t1) continue;
+      const x = xOf(t);
       svg.appendChild(el("line", { x1: x, y1: TOP - 7, x2: x, y2: TOP, stroke: "var(--rule-2)" }));
       svg.appendChild(el("text", { x, y: TOP - 12, "text-anchor": "middle", "font-size": 11, class: "num" },
         fmtClock(t, loc.tz)));
     }
-    for (let h = 0; h <= 24; h += xStep) {
-      const x = L + PW * h / 24;
-      const sun = h === 6 || h === 20;
+    for (const m of marks) {
+      if (m.h % xStep !== 0) continue;
+      const x = xOf(m.t), sun = m.h === 6 || m.h === 20;
       svg.appendChild(el("line", { x1: x, y1: BOT + BH, x2: x, y2: BOT + BH + 7, stroke: sun ? "var(--sun)" : "var(--rule-2)" }));
       svg.appendChild(el("text", { x, y: BOT + BH + 20, "text-anchor": "middle", "font-size": 11, class: "num",
-        fill: sun ? "var(--sun)" : "var(--ink-3)" }, pad2(h % 24) + ":00"));
-    }
-    /* name the two events on the tie lines that matter */
-    for (const [h, label, color] of [[6, "sunrise", "var(--sun-hi)"], [20, "sunset", "var(--dusk-dk)"]]) {
-      const t = sst.toInstant(h, fr), xa = xCivil(t), xb = L + PW * h / 24;
-      svg.appendChild(el("text", { x: (xa + xb) / 2, y: (TOP + BH + BOT) / 2 + 4, "text-anchor": "middle",
-        "font-size": 10.5, "letter-spacing": .8, fill: color }, label));
+        fill: sun ? "var(--sun)" : "var(--ink-3)" }, pad2(m.h) + ":00"));
     }
 
-    const c1 = el("line", { y1: TOP - 6, y2: TOP + BH + 4, stroke: "var(--s3)", "stroke-width": 1.4 });
-    const c2 = el("line", { y1: BOT - 4, y2: BOT + BH + 6, stroke: "var(--s3)", "stroke-width": 1.4 });
-    const link = el("line", { stroke: "var(--s3)", "stroke-width": 1.6, "stroke-dasharray": "3 3" });
-    svg.appendChild(link); svg.appendChild(c1); svg.appendChild(c2);
+    const cross = el("line", { y1: TOP - 6, y2: BOT + BH + 6, stroke: "var(--s3)", "stroke-width": 1.4 });
+    svg.appendChild(cross);
 
-    cache = { t0, t1, xCivil, xSst, fr };
-    live = { c1, c2, link };
+    cache = { t0, t1, xOf };
+    live = { cross };
   }
 
   function update(ctx) {
-    const { fr, t, loc } = ctx;
-    const key = [fr.midnight, loc.lat, loc.lon, state.base, state.elev, isNarrow()].join("|");
+    const { t, loc } = ctx;
+    const win = civilWindow(t, loc);
+    const key = [win.t0, loc.lat, loc.lon, state.base, state.elev, isNarrow()].join("|");
     if (key !== update.key) { update.key = key; build(ctx); }
-    const tc = clamp(t, cache.t0, cache.t1 - 1);
-    const a = cache.xCivil(tc), b = cache.xSst(tc);
-    live.c1.setAttribute("x1", a); live.c1.setAttribute("x2", a);
-    live.c2.setAttribute("x1", b); live.c2.setAttribute("x2", b);
-    live.link.setAttribute("x1", a); live.link.setAttribute("y1", TOP + BH);
-    live.link.setAttribute("x2", b); live.link.setAttribute("y2", BOT);
+    const x = cache.xOf(clamp(t, cache.t0, cache.t1 - 1));
+    live.cross.setAttribute("x1", x); live.cross.setAttribute("x2", x);
   }
 
   attachScrub(svg, (p) => {
     if (!cache) return null;
     const frac = clamp((p.x - L) / PW, 0, 1);
-    const t = clamp(p.y > (TOP + BH + BOT) / 2
-      ? sst.toInstant(clamp(frac * 24, 0, 23.9999), cache.fr)
-      : lerp(cache.t0, cache.t1, frac), cache.t0, cache.t1 - 1);
+    const t = clamp(lerp(cache.t0, cache.t1, frac), cache.t0, cache.t1 - 1);
     const loc = state.here, s = sst.at(t, loc, cfgFor());
     const f = sst.fmt(s.hours, state.hour12, true);
     return { instant: t, title: f.core + " " + f.suffix + " SST",
