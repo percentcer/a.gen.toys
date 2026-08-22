@@ -55,7 +55,7 @@ header.mast{padding:34px 0 18px}
 
 /* ── controls ─────────────────────────────────────────── */
 .controls{
-  position:sticky; top:0; z-index:40; margin:18px 0 22px;
+  margin:18px 0 22px;
   background:var(--card);
   border:1px solid var(--rule); border-radius:var(--r); padding:12px 14px;
   display:flex; gap:18px; flex-wrap:wrap; align-items:flex-end;
@@ -90,10 +90,36 @@ button:focus-visible{outline:2px solid var(--dusk-lt); outline-offset:1px}
 
 /* ── layout ───────────────────────────────────────────── */
 .grid{display:grid; gap:16px}
-.row-now{grid-template-columns:minmax(340px,400px) minmax(270px,.9fr) minmax(320px,1.1fr)}
 .row-year{grid-template-columns:1.35fr 1fr}
 .row-cmp{grid-template-columns:1fr}
-@media (max-width:1080px){ .row-now,.row-year{grid-template-columns:1fr} }
+
+/* The Now row pins at every width; only how much of it pins changes. Whatever is
+   sticky must be a child of .wrap, or it unpins the moment its grid scrolls past
+   — hence display:contents at the narrower tiers. */
+
+/* three across — the whole row pins */
+.row-now{grid-template-columns:minmax(340px,400px) minmax(270px,.9fr) minmax(320px,1.1fr)}
+.pinpair{display:contents}
+
+@media (min-width:1081px){
+  .row-now{
+    position:sticky; top:0; z-index:30;
+    background:var(--bg); padding-bottom:14px; border-bottom:1px solid var(--rule);
+  }
+}
+
+/* two across — the clock and the digital pin, the stat sheet scrolls under */
+@media (max-width:1080px){
+  .row-year{grid-template-columns:1fr}
+  .row-now{display:contents}
+  .row-now > .card{margin-bottom:16px}
+  .pinpair{
+    display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;
+    position:sticky; top:0; z-index:30;
+    background:var(--bg); padding-bottom:14px; border-bottom:1px solid var(--rule);
+  }
+}
+
 
 .card{
   background:var(--card);
@@ -184,6 +210,20 @@ details.tbl summary:hover{color:var(--ink-2)}
 .foot p{margin:0 0 8px}
 .foot code{font-family:var(--mono); color:var(--dusk)}
 .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+/* narrow: the controls stop hogging the top, and only the analogue clock pins */
+@media (max-width:720px){
+  .wrap{padding:0 12px 60px}
+  .controls{margin:14px 0 18px}
+  /* one across — only the analogue clock pins, at its natural size */
+  .pinpair{display:contents; position:static; background:none; border-bottom:0; padding-bottom:0; margin-bottom:0}
+  .pinpair > .card{margin-bottom:16px}
+  .card.pinned{
+    position:sticky; top:0; z-index:30;
+    border-top:0; border-radius:0 0 var(--r) var(--r); padding-top:10px;
+  }
+  figure.scroll{overflow-x:visible}
+  figure.scroll > svg{min-width:0}
+}
 </style>
 </head>
 <body>
@@ -240,7 +280,8 @@ details.tbl summary:hover{color:var(--ink-2)}
 
 <div class="sec-title">Now</div>
 <div class="grid row-now">
-  <section class="card" aria-label="Analogue Sunset Standard Time clock">
+  <div class="pinpair">
+  <section class="card pinned" aria-label="Analogue Sunset Standard Time clock">
     <h2>Analogue SST
       <span class="tools">
         <span class="seg" role="group" aria-label="Clock mode">
@@ -276,6 +317,7 @@ details.tbl summary:hover{color:var(--ink-2)}
       <dt>SST second</dt><dd id="rSec">&mdash;</dd>
     </dl>
   </section>
+  </div>
 
   <section class="card" aria-label="Stat sheet">
     <h2>Stat Sheet</h2>
@@ -374,6 +416,8 @@ const $ = (id) => document.getElementById(id);
 const DAYMS = 86400000, HOURMS = 3600000, MINMS = 60000;
 const RAD = Math.PI / 180, DEG = 180 / Math.PI;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+/* must match the @media breakpoint the layout uses */
+const isNarrow = () => innerWidth < 720;
 const lerp = (a, b, t) => a + (b - a) * t;
 
 function el(tag, attrs, kids) {
@@ -876,25 +920,54 @@ const clockW = (() => {
   };
   let dialKey = "", hands = null;
 
-  function buildDial(fr, seg) {
+  /* A chronograph subdial: its own wheel, its own uniform 0–60 scale. The hand
+     is free to change speed, it just has to finish its turn at the top. */
+  function subdial(g, cx, cy, r, label, color) {
+    const s = el("g", { transform: "translate(" + cx + "," + cy + ")" });
+    s.appendChild(el("circle", { r, fill: "#12122a", stroke: "var(--rule-2)", "stroke-width": .9 }));
+    for (let i = 0; i < 12; i++) {
+      const a = i * 30, big = i % 3 === 0;
+      const [x0, y0] = P(r - (big ? 6 : 3.5), a), [x1, y1] = P(r - 1, a);
+      s.appendChild(el("line", { x1: x0, y1: y0, x2: x1, y2: y1,
+        stroke: big ? "var(--ink-3)" : "var(--rule-2)", "stroke-width": big ? 1.2 : .7 }));
+    }
+    const hand = el("path", { d: "M0,3.5 L-1.7,0 L0," + (-(r - 5)) + " L1.7,0 Z", fill: color });
+    s.appendChild(hand);
+    s.appendChild(el("circle", { r: 2, fill: color }));
+    s.appendChild(el("text", { x: 0, y: r + 10, "text-anchor": "middle", "font-size": 7,
+      "letter-spacing": 1.2, fill: "var(--ink-3)" }, label));
+    g.appendChild(s);
+    return hand;
+  }
+
+  function buildDial(fr, sst0) {
     clear(svg);
     /* warm face when the sun is up, indigo when it is down */
-    svg.appendChild(el("circle", { r: 158, fill: seg === "day" ? "#2b2138" : "#16162c",
+    svg.appendChild(el("circle", { r: 158, fill: sst0.segment === "day" ? "#2b2138" : "#16162c",
       stroke: "var(--rule)", "stroke-width": 1 }));
 
     const g = el("g");
     svg.appendChild(g);
 
-    if (state.clockMode === "A") buildElasticDial(g, fr);
+    const A = state.clockMode === "A";
+    if (A) buildElasticDial(g, fr);
     else buildFixedDial(g, fr);
+
+    /* On the elastic dial the main hand only ever tells the hour; minutes and
+       seconds move to subdials, so no two scales have to share a rim. */
+    const sub = A ? { min: subdial(g, -43, -4, 27, "MIN", "var(--sun-hi)"),
+                      sec: subdial(g, 43, -4, 27, "SEC", "var(--s3)") } : null;
 
     /* hands */
     const hg = el("g");
-    const hourHand = el("path", { d: "M0,10 L-5,0 L0,-92 L5,0 Z", fill: "var(--sun-pale)", stroke: "none" });
-    const minHand = el("path", { d: "M0,14 L-3.4,0 L0,-128 L3.4,0 Z", fill: "var(--sun-hi)", stroke: "none" });
-    const secHand = el("g");
-    secHand.appendChild(el("line", { x1: 0, y1: 22, x2: 0, y2: -138, stroke: "var(--s3)", "stroke-width": 1.4 }));
-    hg.appendChild(hourHand); hg.appendChild(minHand); hg.appendChild(secHand);
+    const hourHand = el("path", { d: A ? "M0,12 L-4.6,0 L0,-124 L4.6,0 Z" : "M0,10 L-5,0 L0,-92 L5,0 Z",
+      fill: "var(--sun-pale)", stroke: "none" });
+    const minHand = A ? null : el("path", { d: "M0,14 L-3.4,0 L0,-128 L3.4,0 Z", fill: "var(--sun-hi)", stroke: "none" });
+    const secHand = A ? null : el("g");
+    if (secHand) secHand.appendChild(el("line", { x1: 0, y1: 22, x2: 0, y2: -138, stroke: "var(--s3)", "stroke-width": 1.4 }));
+    hg.appendChild(hourHand);
+    if (minHand) hg.appendChild(minHand);
+    if (secHand) hg.appendChild(secHand);
     hg.appendChild(el("circle", { r: 6.5, fill: "var(--card-2)", stroke: "var(--s3)", "stroke-width": 1.6 }));
     hg.appendChild(el("circle", { r: 1.8, fill: "var(--s3)" }));
     svg.appendChild(hg);
@@ -902,7 +975,7 @@ const clockW = (() => {
     const phase = el("text", { x: 0, y: 58, "text-anchor": "middle", "font-size": 10.5,
       "letter-spacing": 1.6, fill: "var(--ink-3)" });
     svg.appendChild(phase);
-    hands = { hourHand, minHand, secHand, phase };
+    hands = { hourHand, minHand, secHand, sub, phase };
   }
 
   /* Mode A — an ordinary 12-hour movement set at SST midnight, with the dial re-printed.
@@ -912,13 +985,6 @@ const clockW = (() => {
     const RINGS = [{ r: 92, rr: 77, fs: 12.5 }, { r: 136, rr: 121, fs: 15 }];
     const nowRev = clamp(Math.floor((shownInstant() - T0) / (12 * HOURMS)), 0, 1);
 
-    /* uniform real-minute ticks — the movement is standard */
-    for (let i = 0; i < 60; i++) {
-      const a = i * 6, big = i % 5 === 0;
-      const [x0, y0] = P(big ? 149 : 152, a), [x1, y1] = P(155, a);
-      g.appendChild(el("line", { x1: x0, y1: y0, x2: x1, y2: y1,
-        stroke: big ? "var(--rule-2)" : "var(--rule)", "stroke-width": big ? 1.4 : 0.8 }));
-    }
 
     RINGS.forEach((ring, rev) => {
       const active = rev === nowRev;
@@ -996,24 +1062,25 @@ const clockW = (() => {
     const { fr, s, t } = ctx;
     const key = [state.clockMode, fr.midnight, state.here.lat, state.here.lon, state.base, state.elev,
       state.clockMode === "A" ? clamp(Math.floor((t - fr.midnight) / (12 * HOURMS)), 0, 1) : s.segment].join("|");
-    if (key !== dialKey) { dialKey = key; buildDial(fr, s.segment); }
+    if (key !== dialKey) { dialKey = key; buildDial(fr, s); }
 
-    let ah, am, as;
+    const frac = s.hours - Math.floor(s.hours);
+    const am = 360 * frac, as = 360 * ((frac * 60) % 1);
+    let ah;
     if (state.clockMode === "A") {
+      /* the main hand is an ordinary uniform movement reading the elastic hour
+         marks; the subdials carry minutes and seconds, each closing its own turn
+         at the top however long its hour or minute happens to be */
       const e = t - fr.midnight;
       ah = 360 * ((e % (12 * HOURMS)) / (12 * HOURMS));
-      am = 360 * ((e % HOURMS) / HOURMS);
-      as = 360 * ((e % MINMS) / MINMS);
+      hands.sub.min.setAttribute("transform", `rotate(${am.toFixed(2)})`);
+      hands.sub.sec.setAttribute("transform", `rotate(${as.toFixed(2)})`);
     } else {
-      const hrs = s.hours;
-      ah = 360 * ((hrs % 12) / 12);
-      const frac = hrs - Math.floor(hrs);
-      am = 360 * frac;
-      as = 360 * ((frac * 60) % 1);
+      ah = 360 * ((s.hours % 12) / 12);                // elastic hands, even dial
+      hands.minHand.setAttribute("transform", `rotate(${am.toFixed(3)})`);
+      hands.secHand.setAttribute("transform", `rotate(${as.toFixed(3)})`);
     }
     hands.hourHand.setAttribute("transform", `rotate(${ah.toFixed(3)})`);
-    hands.minHand.setAttribute("transform", `rotate(${am.toFixed(3)})`);
-    hands.secHand.setAttribute("transform", `rotate(${as.toFixed(3)})`);
     hands.phase.textContent = s.segment === "day" ? "DAYLIGHT" : (s.which === "pre-dawn" ? "BEFORE DAWN" : "AFTER DUSK");
   }
   return { update, invalidate: () => { dialKey = ""; } };
@@ -1116,7 +1183,7 @@ let requestRender = () => {};
    cache the rect, invalidating it whenever the page can have moved. */
 let rectDirty = true;
 addEventListener("scroll", () => { rectDirty = true; }, { passive: true });
-addEventListener("resize", () => { rectDirty = true; });
+addEventListener("resize", () => { rectDirty = true; requestRender(); });
 
 function attachScrub(svg, mapper) {
   let queued = null, scheduled = false, rect = null;
@@ -1158,8 +1225,16 @@ function attachScrub(svg, mapper) {
 /* ── 7d. sun through the day ────────────────────────────────────────────── */
 const dayCurveW = (() => {
   const svg = $("dayCurve");
-  const W = 1100, H = 320, L = 52, R = 22, T = 16, B = 38;
-  const PW = W - L - R, PH = H - T - B;
+  /* geometry is re-chosen per build so the chart reshapes for a phone instead of
+     overflowing into a horizontal scrollbar */
+  let W, H, L, R, T, B, PW, PH, xStep;
+  function metrics() {
+    if (isNarrow()) { W = 400; H = 240; L = 34; R = 12; T = 14; B = 30; xStep = 4; }
+    else            { W = 1100; H = 320; L = 52; R = 22; T = 16; B = 38; xStep = 2; }
+    PW = W - L - R; PH = H - T - B;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  }
+  metrics();
   let cache = null, live = null;
 
   const BANDS = [
@@ -1171,6 +1246,7 @@ const dayCurveW = (() => {
 
   function build(ctx) {
     const { fr, loc } = ctx;
+    metrics();
     clear(svg);
     const t0 = fr.midnight, t1 = fr.nextMidnight;
     const N = 480;
@@ -1227,11 +1303,11 @@ const dayCurveW = (() => {
       "stroke-width": 1.2, "stroke-dasharray": "5 4", opacity: .85 }));
 
     /* rise / meridian / set — three short lines each, side chosen to stay inside the plot */
-    const evt = (t, label, l2, l3, color, row) => {
+    const evt = (t, label, l2, l3, color, row, mid) => {
       const x = xOfT(t);
       g.appendChild(el("line", { x1: x, y1: T, x2: x, y2: T + PH, stroke: color, "stroke-width": 1, opacity: .55 }));
-      const side = x > L + PW - 120 ? "end" : "start";
-      const dx = side === "end" ? -7 : 7, y0 = T + 14 + row * 46;
+      const side = mid ? "middle" : (x > L + PW * 0.62 ? "end" : "start");
+      const dx = side === "end" ? -7 : side === "middle" ? 0 : 7, y0 = T + 14 + row * 46;
       const halo = { "paint-order": "stroke", stroke: "#12122099", "stroke-width": 3.5, "stroke-linejoin": "round" };
       const txt = (yy, size, fill, cls, s) => g.appendChild(el("text",
         Object.assign({ x: x + dx, y: yy, "text-anchor": side, "font-size": size, fill, class: cls }, halo), s));
@@ -1241,22 +1317,23 @@ const dayCurveW = (() => {
     };
     evt(fr.rise, "RISE", fmtClock(fr.rise, loc.tz), "06:00 SST", "var(--sun-hi)", 0);
     if (fr.day.noon > t0 && fr.day.noon < t1)
+      /* narrow: centre the meridian stack on its own line so it clears SET */
       evt(fr.day.noon, "MERIDIAN " + fr.day.maxAlt.toFixed(1) + "°", fmtClock(fr.day.noon, loc.tz),
-        sst.fmt(sst.at(fr.day.noon, loc, cfgFor()).hours, false).core + " SST", "var(--s2)", 1);
+        sst.fmt(sst.at(fr.day.noon, loc, cfgFor()).hours, false).core + " SST", "var(--s2)", 1, isNarrow());
     evt(fr.set, "SET", fmtClock(fr.set, loc.tz), "20:00 SST", "var(--dusk-dk)", 0);
 
     /* axes */
     const ax = el("g"); svg.appendChild(ax);
     if (state.dayAxis === "civil") {
       const startH = Math.ceil(t0 / HOURMS) * HOURMS;
-      for (let t = startH; t <= t1; t += 2 * HOURMS) {
+      for (let t = startH; t <= t1; t += xStep * HOURMS) {
         const x = L + PW * (t - t0) / (t1 - t0);
         ax.appendChild(el("line", { x1: x, y1: T + PH, x2: x, y2: T + PH + 4, stroke: "var(--rule-2)" }));
         ax.appendChild(el("text", { x, y: H - 12, "text-anchor": "middle", "font-size": 11, class: "num" },
           fmtClock(t, loc.tz)));
       }
     } else {
-      for (let h = 0; h <= 24; h += 2) {
+      for (let h = 0; h <= 24; h += xStep) {
         const x = L + PW * h / 24;
         ax.appendChild(el("line", { x1: x, y1: T + PH, x2: x, y2: T + PH + 4,
           stroke: (h === 6 || h === 20) ? "var(--sun)" : "var(--rule-2)" }));
@@ -1294,7 +1371,7 @@ const dayCurveW = (() => {
 
   function update(ctx) {
     const { fr, t, loc } = ctx;
-    const key = [fr.midnight, loc.lat, loc.lon, state.base, state.elev, state.dayAxis].join("|");
+    const key = [fr.midnight, loc.lat, loc.lon, state.base, state.elev, state.dayAxis, isNarrow()].join("|");
     if (key !== update.key) { update.key = key; build(ctx); }
     const tc = clamp(t, cache.t0, cache.t1);
     const x = cache.xOfT(tc), y = cache.yOf(solar.altitude(tc, loc.lat, loc.lon));
@@ -1337,8 +1414,14 @@ const dayCurveW = (() => {
 /* ── 7e. civil ruler vs SST ruler ───────────────────────────────────────── */
 const rulerW = (() => {
   const svg = $("ruler");
-  const W = 1100, H = 230, L = 20, R = 20, PW = W - L - R;
-  const TOP = 46, BOT = 156, BH = 32;
+  let W, H, L, R, PW, TOP, BOT, BH, xStep;
+  function metrics() {
+    if (isNarrow()) { W = 400; H = 230; L = 14; R = 14; TOP = 46; BOT = 156; BH = 32; xStep = 4; }
+    else            { W = 1100; H = 230; L = 20; R = 20; TOP = 46; BOT = 156; BH = 32; xStep = 2; }
+    PW = W - L - R;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  }
+  metrics();
   let cache = null, live = null;
 
   const tintFor = (alt, anchor) => alt >= anchor ? "var(--t-day-a)" : alt >= -6 ? "var(--t-civil)"
@@ -1346,6 +1429,7 @@ const rulerW = (() => {
 
   function build(ctx) {
     const { fr, loc } = ctx;
+    metrics();
     clear(svg);
     const t0 = fr.midnight, t1 = fr.nextMidnight;
     const xCivil = (t) => L + PW * (t - t0) / (t1 - t0);
@@ -1396,13 +1480,13 @@ const rulerW = (() => {
       "CIVIL CLOCK"));
     svg.appendChild(el("text", { x: L, y: H - 4, "font-size": 10.5, "letter-spacing": 1.4, fill: "var(--s1)" },
       "SUNSET STANDARD TIME"));
-    for (let t = startH; t <= t1; t += 2 * HOURMS) {
+    for (let t = startH; t <= t1; t += xStep * HOURMS) {
       const x = xCivil(t);
       svg.appendChild(el("line", { x1: x, y1: TOP - 7, x2: x, y2: TOP, stroke: "var(--rule-2)" }));
       svg.appendChild(el("text", { x, y: TOP - 12, "text-anchor": "middle", "font-size": 11, class: "num" },
         fmtClock(t, loc.tz)));
     }
-    for (let h = 0; h <= 24; h += 2) {
+    for (let h = 0; h <= 24; h += xStep) {
       const x = L + PW * h / 24;
       const sun = h === 6 || h === 20;
       svg.appendChild(el("line", { x1: x, y1: BOT + BH, x2: x, y2: BOT + BH + 7, stroke: sun ? "var(--sun)" : "var(--rule-2)" }));
@@ -1427,7 +1511,7 @@ const rulerW = (() => {
 
   function update(ctx) {
     const { fr, t, loc } = ctx;
-    const key = [fr.midnight, loc.lat, loc.lon, state.base, state.elev].join("|");
+    const key = [fr.midnight, loc.lat, loc.lon, state.base, state.elev, isNarrow()].join("|");
     if (key !== update.key) { update.key = key; build(ctx); }
     const tc = clamp(t, cache.t0, cache.t1 - 1);
     const a = cache.xCivil(tc), b = cache.xSst(tc);
