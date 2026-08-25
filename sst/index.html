@@ -145,6 +145,13 @@ button:focus-visible{outline:2px solid var(--dusk-lt); outline-offset:1px}
 #clock{max-width:360px; margin:0 auto}
 figure.scroll{overflow-x:auto}
 figure.scroll > svg{min-width:720px}
+/* an axis lock is otherwise invisible — the pointer keeps moving while only one
+   axis of the readout follows it, which reads as a stuck chart */
+/* the drag lock also suppresses selection: the gesture is a scrub, and the class
+   lands on pointerdown, before the mousedown that would start a selection */
+svg.lock-x{cursor:ns-resize; user-select:none}
+svg.lock-y{cursor:ew-resize}
+svg.lock-x.lock-y{cursor:not-allowed}
 
 /* ── digital ──────────────────────────────────────────── */
 .digital{font-family:var(--mono); font-size:clamp(34px,5.4vw,56px); line-height:1;
@@ -159,6 +166,14 @@ figure.scroll > svg{min-width:720px}
 .badge.warn{border-color:var(--alert); color:var(--alert)}
 .badge.day{border-color:var(--sun-hi); color:var(--sun-hi)}
 .badge.night{border-color:var(--dusk-lt); color:var(--dusk-lt)}
+/* The digital panel sits in a fit-content column, so a phase badge that shrinks
+   from "daylight" to "night" would drag the whole panel narrower at dusk and
+   widen it again at dawn. An invisible "daylight" stacked in the same grid cell
+   floors the badge at its widest, whichever word is showing. */
+.badge.phase{display:inline-grid; place-items:center; white-space:nowrap}
+.badge.phase > span,
+.badge.phase::after{grid-area:1/1}
+.badge.phase::after{content:"daylight"; visibility:hidden}
 
 /* ── stats ────────────────────────────────────────────── */
 .stats{display:grid; grid-template-columns:1fr 1fr; gap:10px}
@@ -1382,10 +1397,9 @@ const digitalW = (() => {
     rCivil.textContent = fmtCivil(t, loc.tz, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
       + "  " + fmtDate(t, loc.tz);
     const badge = s.segment === "day" ? "day" : "night";
-    rPhase.innerHTML = '<span class="badge ' + badge + '">' + (s.segment === "day" ? "daylight" : "night")
-      + "</span> " + (s.segment === "day"
-        ? "hour = " + fmtMinutes(s.hourMs)
-        : "hour = " + fmtMinutes(s.hourMs));
+    rPhase.innerHTML = '<span class="badge phase ' + badge + '"><span>'
+      + (s.segment === "day" ? "daylight" : "night")
+      + "</span></span> hour = " + fmtMinutes(s.hourMs);
     const d = fr.day;
     rAnchor.innerHTML = d.anchor.toFixed(3) + "° <span class=\"badge" + (d.fallback ? " warn" : "") + "\">"
       + d.anchorName + (d.fallback ? " · " + d.fallback : "") + "</span>";
@@ -1451,16 +1465,39 @@ let rectDirty = true;
 addEventListener("scroll", () => { rectDirty = true; }, { passive: true });
 addEventListener("resize", () => { rectDirty = true; layoutDirty = true; requestRender(); });
 
-function attachScrub(svg, mapper) {
+function attachScrub(svg, mapper, opts) {
+  /* lockAxes: on a two-axis chart the day and the time both move at once, which
+     makes either one hard to hold steady. Dragging pins the day so the pointer
+     scrubs time down a single column; Shift pins the time so it scrubs the day
+     along a single row. Holding both freezes the readout. */
+  const lockAxes = !!(opts && opts.lockAxes);
   let queued = null, scheduled = false, rect = null;
+  let pinX = null, pinY = null, last = null;
+  const toVB = (evt) => {
+    if (!rect || rectDirty) { rect = svg.getBoundingClientRect(); rectDirty = false; }
+    const vb = svg.viewBox.baseVal;
+    return { x: (evt.clientX - rect.left) / rect.width * vb.width,
+             y: (evt.clientY - rect.top) / rect.height * vb.height };
+  };
+  const marks = () => {
+    svg.classList.toggle("lock-x", pinX !== null);
+    svg.classList.toggle("lock-y", pinY !== null);
+  };
   const flush = () => {
     scheduled = false;
     const evt = queued; queued = null;
     if (!evt) return;
-    if (!rect || rectDirty) { rect = svg.getBoundingClientRect(); rectDirty = false; }
-    const vb = svg.viewBox.baseVal;
-    const p = { x: (evt.clientX - rect.left) / rect.width * vb.width,
-                y: (evt.clientY - rect.top) / rect.height * vb.height };
+    const raw = toVB(evt);
+    last = raw;
+    if (lockAxes) {
+      /* a pointerup or a Shift keyup can be missed — the page can lose focus
+         mid-drag — so the state carried on every move is the authority, and the
+         listeners below only exist to catch the lock at the instant it starts */
+      if (!(evt.buttons & 1)) pinX = null;
+      if (!evt.shiftKey) pinY = null; else if (pinY === null) pinY = raw.y;
+      marks();
+    }
+    const p = { x: pinX === null ? raw.x : pinX, y: pinY === null ? raw.y : pinY };
     const m = mapper(p, evt);
     if (!m) { hideTip(); return; }
     state.preview = m.instant;
@@ -1471,12 +1508,49 @@ function attachScrub(svg, mapper) {
     queued = evt;
     if (!scheduled) { scheduled = true; requestAnimationFrame(flush); }
   };
-  svg.addEventListener("pointermove", move, { passive: true });
-  svg.addEventListener("pointerdown", move);
-  svg.addEventListener("pointerleave", () => {
-    queued = null; rect = null;
+  const leave = () => {
+    queued = null; rect = null; last = null;
+    pinX = null; pinY = null; marks();
     state.preview = null; hideTip(); requestRender();
+  };
+  svg.addEventListener("pointermove", move, { passive: true });
+  svg.addEventListener("pointerdown", (evt) => {
+    /* touch has no hover and no second button, so a finger drag keeps the plain
+       two-axis scrub — locking there would take away the only gesture it has */
+    if (lockAxes && evt.button === 0 && evt.pointerType === "mouse") {
+      /* taken here rather than off the first move, or the day would travel with
+         the pointer for one frame before the lock caught up */
+      pinX = toVB(evt).x;
+      /* captured so a scrub that runs off the top or bottom edge keeps going and
+         clamps, rather than reading as a pointerleave and dropping the preview */
+      svg.setPointerCapture(evt.pointerId);
+      marks();
+    }
+    move(evt);
   });
+  const endDrag = (evt) => {
+    if (pinX === null) return;
+    if (svg.hasPointerCapture(evt.pointerId)) svg.releasePointerCapture(evt.pointerId);
+    pinX = null; marks();
+    /* releasing capture outside the chart does not reliably raise pointerleave */
+    const r = svg.getBoundingClientRect();
+    if (evt.clientX < r.left || evt.clientX > r.right
+      || evt.clientY < r.top || evt.clientY > r.bottom) leave();
+  };
+  svg.addEventListener("pointerup", endDrag);
+  svg.addEventListener("pointercancel", endDrag);
+  svg.addEventListener("pointerleave", () => { if (pinX === null) leave(); });
+  if (lockAxes) {
+    /* Shift can go down with the pointer at rest, so the time is pinned from the
+       last position seen instead of waiting for a move to supply one — waiting
+       would pin whatever the hand drifted to instead of what was under it */
+    addEventListener("keydown", (e) => {
+      if (e.key !== "Shift" || pinY !== null || !last) return;
+      pinY = last.y; marks();
+    });
+    addEventListener("keyup", (e) => { if (e.key === "Shift") { pinY = null; marks(); } });
+    addEventListener("blur", () => { pinY = null; marks(); });
+  }
   svg.setAttribute("tabindex", "0");
   svg.addEventListener("keydown", (e) => {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
@@ -2052,7 +2126,7 @@ const yearW = (() => {
              ["Daylight", fmtDur(d.daylight)],
              ["Day hour", fmtMinutes(d.dayHour)], ["Night hour", fmtMinutes(d.nightHour)],
              ["Anchor", d.anchorName]] };
-  });
+  }, { lockAxes: true });
 
   legend($("yearLegend"), LEGEND);
   return { update, rebuild, place };
