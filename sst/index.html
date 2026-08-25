@@ -200,8 +200,38 @@ details.tbl summary{cursor:pointer; color:var(--ink-3); font-size:11.5px; margin
 details.tbl summary:hover{color:var(--ink-2)}
 
 /* ── compare ──────────────────────────────────────────── */
-.cmp{display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:stretch}
+/* the number of places is chosen in the picker, so the track count follows the
+   width rather than being fixed at two */
+.cmp{display:grid; grid-template-columns:repeat(auto-fit,minmax(232px,1fr)); gap:16px; align-items:stretch}
 @media (max-width:720px){ .cmp{grid-template-columns:1fr} }
+
+/* ── multi-select picker ──────────────────────────────── */
+.picker{position:relative}
+/* line-height is pinned in px so the summary is exactly as tall as the <select>
+   it sits beside (31px); left to inherit, it makes the controls bar 2px taller */
+.picker > summary{
+  list-style:none; cursor:pointer; display:inline-block;
+  background:var(--inner); color:var(--ink); border:1px solid var(--rule);
+  border-radius:var(--r); padding:6px 24px 6px 8px; font-size:13px; line-height:17px;
+  white-space:nowrap;
+}
+.picker > summary::-webkit-details-marker{display:none}
+.picker > summary::after{content:"\25be"; position:absolute; right:8px; top:50%; margin-top:-9px; color:var(--ink-3)}
+.picker > summary:focus-visible{outline:2px solid var(--dusk-lt); outline-offset:1px}
+.picker[open] > summary{border-color:var(--dusk-lt)}
+.picker-menu{
+  position:absolute; z-index:70; top:calc(100% + 4px); left:0;
+  min-width:230px; max-height:min(360px,60vh); overflow:auto;
+  background:var(--card-2); border:1px solid var(--rule-2); border-radius:var(--r);
+  padding:5px; box-shadow:0 14px 44px #00000090;
+}
+.picker-menu .cap{font-size:10.5px; color:var(--ink-3); padding:3px 7px 5px}
+.picker-menu label{display:flex; align-items:center; gap:8px; padding:3px 7px;
+  font-size:12.5px; border-radius:var(--r); cursor:pointer}
+.picker-menu label:hover{background:var(--bg-hi)}
+.picker-menu label.off{color:var(--ink-3); cursor:not-allowed}
+.picker-menu input{accent-color:var(--sun); margin:0}
+.picker-menu .sw{width:9px; height:9px; flex:0 0 auto; border:1px solid var(--rule)}
 .cmp-loc{background:var(--inner); border:1px solid var(--rule); border-radius:var(--r); padding:12px;
   display:flex; align-items:center; gap:16px}
 .cmp-loc .txt{flex:1 1 auto; min-width:0}
@@ -245,24 +275,34 @@ dialog.sheet .sheet-close{margin-top:6px}
    Above this gate everything fits at once, so the page stops being four stacked
    sections and becomes a single grid: the analogue clock in the middle at
    whatever size its cell allows, the other seven widgets closing around it as a
-   border. Height is gated as well as width, and the height figure is empirical:
-   below roughly 860px the ring gives the clock *less* room than the scrolling
-   layout's 360px cap does, which defeats the point, so the scrolling layout
-   keeps those sizes. Must stay in step with ringQ in the script. */
-@media (min-width:1280px) and (min-height:860px){
+   border. Both gate figures are empirical. Under about 900px tall the ring gives
+   the clock *less* room than the scrolling layout's 360px cap does, which
+   defeats the point; under about 1440px wide the four columns stop fitting and
+   the stat sheet starts wrapping its labels. The scrolling layout keeps those
+   sizes. Must stay in step with ringQ in the script. */
+@media (min-width:1440px) and (min-height:900px){
   html,body{height:100%; overflow:hidden}
 
   .wrap{
     max-width:2100px; height:100dvh; padding:12px 16px; gap:11px;
     display:grid; min-height:0;
-    grid-template-columns:minmax(250px,1fr) minmax(400px,1.6fr) minmax(250px,1fr);
+    /* The clock is square and height-bound, so every pixel of column beyond its
+       own height is dead space inside that card — --clock-col is measured and
+       set by fitClockColumn(). The digital panel takes only what its readouts
+       need. Whatever those two give up goes to the year charts, which read far
+       better wide than tall. */
+    grid-template-columns:
+      minmax(150px,.7fr)        /* stat sheet   */
+      fit-content(360px)        /* digital SST  */
+      var(--clock-col,1.2fr)    /* CLOCK        */
+      minmax(230px,1.3fr);      /* year / hour  */
     grid-template-rows:
-      auto                  /* masthead + controls              */
-      minmax(104px,.95fr)   /* solar altitude       — full width */
-      minmax(120px,1.62fr)  /* digital | CLOCK | year            */
-      minmax(120px,1.62fr)  /* stats   | CLOCK | hour length     */
-      minmax(104px,.95fr)   /* civil vs SST ruler   — full width */
-      auto;                 /* compare              — full width */
+      auto                  /* masthead + controls                     */
+      minmax(104px,.95fr)   /* solar altitude              — full width */
+      minmax(120px,1.62fr)  /* stats | digital | CLOCK | year           */
+      minmax(120px,1.62fr)  /* stats | digital | CLOCK | hour length    */
+      minmax(104px,.95fr)   /* civil vs SST ruler          — full width */
+      auto;                 /* compare                     — full width */
   }
 
   /* the four section grids and the pinpair dissolve, so their cards become
@@ -271,27 +311,31 @@ dialog.sheet .sheet-close{margin-top:6px}
   .grid,.pinpair{display:contents}
   .sec-title{display:none}
 
-  .topbar{grid-area:1/1/2/4; display:flex; align-items:center; gap:14px; min-width:0}
+  .topbar{grid-area:1/1/2/5; display:flex; align-items:center; gap:14px; min-width:0}
   header.mast{padding:0; flex:0 0 auto}
   .mast h1{font-size:18px; letter-spacing:-.2px; white-space:nowrap}
   .controls{flex:1 1 auto; min-width:0; margin:0; padding:6px 10px; gap:11px; flex-wrap:nowrap}
   .controls .ctl{flex:0 1 auto}
+  /* a clipped datetime field loses digits rather than just looking tight, so it
+     holds its width and the time-zone select absorbs the squeeze instead */
+  .controls .ctl-when{flex:0 0 auto}
   /* nowrap keeps a two-word label from adding a second line to the whole bar;
      the ellipsis stops it running into its neighbour once the bar gets tight */
   .ctl > label{font-size:9.5px; letter-spacing:.7px; white-space:nowrap;
     overflow:hidden; text-overflow:ellipsis}
   .controls select,.controls input{font-size:12px; padding:4px 6px}
+  .controls .picker > summary{font-size:12px; line-height:16px; padding:4px 22px 4px 6px}
   .controls input[type=number]{width:56px}
   .controls input[type=text].coord{width:72px}
 
-  .w-day    {grid-area:2/1/3/4}
-  .w-digital{grid-area:3/1/4/2}
-  .w-clock  {grid-area:3/2/5/3}
-  .w-year   {grid-area:3/3/4/4}
-  .w-stats  {grid-area:4/1/5/2}
-  .w-hour   {grid-area:4/3/5/4}
-  .w-ruler  {grid-area:5/1/6/4}
-  .w-cmp    {grid-area:6/1/7/4}
+  .w-day    {grid-area:2/1/3/5}
+  .w-stats  {grid-area:3/1/5/2}
+  .w-digital{grid-area:3/2/5/3}
+  .w-clock  {grid-area:3/3/5/4}
+  .w-year   {grid-area:3/4/4/5}
+  .w-hour   {grid-area:4/4/5/5}
+  .w-ruler  {grid-area:5/1/6/5}
+  .w-cmp    {grid-area:6/1/7/5}
 
   /* min-*:0 is load-bearing: a grid item floors at min-content and will refuse
      to shrink to its track without it, which is what would bring the scrollbar
@@ -329,19 +373,33 @@ dialog.sheet .sheet-close{margin-top:6px}
 
   /* the clock is height-bound by its cell, not capped at 360px as it is in the
      scrolling layout — it is the one widget meant to grow */
+  /* nowrap: a wrapping header would shorten the clock, which would narrow the
+     column, which would wrap the header harder — fitClockColumn() must measure
+     a header height that does not depend on the width it is computing */
+  .w-clock > h2{flex-wrap:nowrap}
   .w-clock .clockwrap{flex:1 1 auto; min-height:0; justify-content:center; gap:0}
   #clock{max-width:100%; max-height:100%; width:auto; height:100%; margin:0 auto}
 
-  .w-digital .digital{flex:0 0 auto; font-size:clamp(24px,2.1vw,34px)}
+  .w-digital .digital{flex:0 0 auto; font-size:clamp(28px,2.2vw,44px)}
   /* the readouts are a fixed eight rows, but the stat sheet grows an extra full-
      width card per anomaly (polar fallback, incoherent day, degenerate day) and
      those carry a paragraph each. Both panels take the overflow themselves so
      the page does not have to. */
-  .w-digital .readouts{flex:1 1 auto; min-height:0; margin-top:6px; gap:1px 12px; font-size:11px; overflow:auto}
-  .w-stats .stats{flex:1 1 auto; min-height:0; align-content:start; gap:7px; overflow:auto}
-  .w-stats .stat{padding:6px 9px}
-  .w-stats .stat .v{font-size:15px}
-  .w-stats .stat .d{font-size:10.5px}
+  /* align-content:start or the grid stretches its eight rows to fill the taller
+     cell and the readouts drift apart */
+  .w-digital .readouts{flex:1 1 auto; min-height:0; align-content:start;
+    margin-top:10px; gap:5px 12px; font-size:12px; overflow:auto}
+  /* one stat per row: the column is too narrow to pair them, and stacking gives
+     each description room to sit on a single line */
+  .w-stats .stats{flex:1 1 auto; min-height:0; grid-template-columns:1fr;
+    align-content:start; gap:7px; overflow:auto}
+  /* label and value share a line, description underneath: two lines per stat
+     instead of three, which is what lets all five fit without the panel
+     scrolling at the smaller ring sizes */
+  .w-stats .stat{padding:6px 9px; display:grid; grid-template-columns:1fr auto; column-gap:10px}
+  .w-stats .stat .k{align-self:baseline}
+  .w-stats .stat .v{align-self:baseline; margin-top:0; text-align:right; font-size:15px}
+  .w-stats .stat .d{grid-column:1/-1; margin-top:3px; font-size:10.5px}
   .card ::-webkit-scrollbar{width:7px; height:7px}
   .card ::-webkit-scrollbar-thumb{background:var(--rule-2); border-radius:4px}
   .card ::-webkit-scrollbar-track{background:transparent}
@@ -384,10 +442,13 @@ dialog.sheet .sheet-close{margin-top:6px}
     </div>
   </div>
   <div class="ctl">
-    <label for="ref">Compare with</label>
-    <select id="ref"></select>
+    <label for="refBtn">Compare with</label>
+    <details class="picker" id="refPick">
+      <summary id="refBtn" role="button" aria-haspopup="true"><span id="refSummary">&mdash;</span></summary>
+      <div class="picker-menu" id="refMenu" role="group" aria-label="Comparison locations"></div>
+    </details>
   </div>
-  <div class="ctl">
+  <div class="ctl ctl-when">
     <label for="when">Date &amp; time <span id="whenTz" style="text-transform:none;letter-spacing:0"></span></label>
     <div class="row">
       <input type="datetime-local" id="when" step="60">
@@ -511,10 +572,7 @@ dialog.sheet .sheet-close{margin-top:6px}
 <div class="sec-title">Compare</div>
 <div class="grid row-cmp">
   <section class="card w-cmp" aria-label="Comparison with a reference location">
-    <div class="cmp">
-      <div class="cmp-loc" id="cmpHere"></div>
-      <div class="cmp-loc" id="cmpThere"></div>
-    </div>
+    <div class="cmp" id="cmpRow"></div>
   </section>
 </div>
 
@@ -552,7 +610,7 @@ const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 /* Both tiers must match the @media queries the layout uses, or a chart will draw
    at a geometry the cell it lands in cannot hold. Keep the literals adjacent. */
 const isNarrow = () => innerWidth < 720;                                  /* @media (max-width:720px)  */
-const ringQ = matchMedia("(min-width:1280px) and (min-height:860px)");    /* the no-scroll ring tier   */
+const ringQ = matchMedia("(min-width:1440px) and (min-height:900px)");    /* the no-scroll ring tier   */
 const isRing = () => ringQ.matches;
 
 /* In the ring tier a chart is bounded by its grid cell rather than by the page
@@ -993,7 +1051,9 @@ const CITIES = [
    ══════════════════════════════════════════════════════════════════════════ */
 const state = {
   here: CITIES[0],
-  there: CITIES.find((c) => c.name === "Tromsø"),
+  /* Tromsø for the polar case, Singapore for the equatorial one where SST barely
+     moves, Ushuaia for a southern hemisphere running the opposite season */
+  theres: ["Tromsø", "Singapore", "Ushuaia"].map((n) => CITIES.find((c) => c.name === n)),
   base: -0.833,
   elev: 0,
   live: true,
@@ -1004,6 +1064,14 @@ const state = {
   dayAxis: "civil",
   yearAxis: "civil"
 };
+/* Four well-separated hues, none of them --s1 (which is always "here") or --s3
+   (reserved for the "now" marker). The cap keeps the compare strip to one row of
+   readable panels, which is what lets the ring stay unscrolled. */
+const CMP_COLORS = ["var(--s2)", "var(--alert)", "var(--sun-hi)", "var(--dusk)"];
+const REF_CAP = CMP_COLORS.length;
+/* "here" can also be ticked in the picker; it is shown once, as here */
+const cmpTheres = () => state.theres.filter((c) => c !== state.here).slice(0, REF_CAP);
+
 const cfgFor = () => ({ base: state.base, elev: state.elev, target: sst.target(state) });
 const baseInstant = () => (state.live ? Date.now() : state.frozen);
 const shownInstant = () => (state.preview !== null ? state.preview : baseInstant());
@@ -1327,7 +1395,7 @@ let requestRender = () => {};
    cache the rect, invalidating it whenever the page can have moved. */
 let rectDirty = true;
 addEventListener("scroll", () => { rectDirty = true; }, { passive: true });
-addEventListener("resize", () => { rectDirty = true; requestRender(); });
+addEventListener("resize", () => { rectDirty = true; layoutDirty = true; requestRender(); });
 
 function attachScrub(svg, mapper) {
   let queued = null, scheduled = false, rect = null;
@@ -2045,12 +2113,13 @@ const hourW = (() => {
 
 /* ── 7i. two places ─────────────────────────────────────────────────────── */
 const cmpW = (() => {
-  const hereEl = $("cmpHere"), thereEl = $("cmpThere");
-  let refsHere = null, refsThere = null;
+  const row = $("cmpRow");
+  let panels = [], builtKey = "";
 
-  /* The panels are built once per location and then only written to. Rebuilding
-     their DOM every frame is what forced the old throttle, and the throttle is
-     what made them lurch while the rest of the page tracked the cursor. */
+  /* The panels are built once per location set and then only written to.
+     Rebuilding their DOM every frame is what forced the old throttle, and the
+     throttle is what made them lurch while the rest of the page tracked the
+     cursor. */
   function miniFace(color) {
     const s = el("svg", { viewBox: "-100 -100 200 200", class: "mini" });
     s.appendChild(el("circle", { r: 92, fill: "var(--inner)", stroke: "var(--rule-2)" }));
@@ -2084,7 +2153,7 @@ const cmpW = (() => {
     const clock = miniFace(color);
     txt.appendChild(nm); txt.appendChild(big); txt.appendChild(sm);
     node.appendChild(txt); node.appendChild(clock.svg);
-    return { key: loc.name + "|" + loc.lat + "|" + loc.lon + "|" + tag, big, l1, l2, l3, clock };
+    return { loc, big, l1, l2, l3, clock };
   }
 
   const setText = (n, v) => { if (n.textContent !== v) n.textContent = v; };
@@ -2101,14 +2170,21 @@ const cmpW = (() => {
   }
 
   function update(ctx) {
-    const hKey = state.here.name + "|" + state.here.lat + "|" + state.here.lon + "|here";
-    if (!refsHere || refsHere.key !== hKey) refsHere = buildPanel(hereEl, state.here, "var(--s1)", "here");
-    const tKey = state.there.name + "|" + state.there.lat + "|" + state.there.lon + "|there";
-    if (!refsThere || refsThere.key !== tKey) refsThere = buildPanel(thereEl, state.there, "var(--s2)", "there");
-    writePanel(refsHere, state.here, ctx.t, ctx.cfg);
-    writePanel(refsThere, state.there, ctx.t, ctx.cfg);
+    const list = [{ loc: state.here, color: "var(--s1)", tag: "here" }].concat(
+      cmpTheres().map((c, i) => ({ loc: c, color: CMP_COLORS[i % CMP_COLORS.length], tag: "there" })));
+    const key = list.map((it) => it.loc.name + "|" + it.loc.lat + "|" + it.loc.lon + "|" + it.tag).join("~");
+    if (key !== builtKey) {
+      builtKey = key;
+      row.innerHTML = "";
+      panels = list.map((it) => {
+        const node = document.createElement("div"); node.className = "cmp-loc";
+        row.appendChild(node);
+        return buildPanel(node, it.loc, it.color, it.tag);
+      });
+    }
+    for (const p of panels) writePanel(p, p.loc, ctx.t, ctx.cfg);
   }
-  return { update, invalidate: () => { refsHere = refsThere = null; } };
+  return { update, invalidate: () => { builtKey = ""; } };
 })();
 
 
@@ -2132,6 +2208,31 @@ function fillCities(sel, chosen, withCustom) {
     sel.appendChild(o);
   }
 }
+/* the comparison picker: a checkbox list behind a disclosure, so it costs one
+   line of the controls bar however many places are ticked */
+function fillRefPicker() {
+  const menu = $("refMenu"), shown = cmpTheres(), full = shown.length >= REF_CAP;
+  menu.innerHTML = "";
+  const cap = document.createElement("div"); cap.className = "cap";
+  cap.textContent = shown.length + " of " + REF_CAP + (full ? " — untick one to add another" : "");
+  menu.appendChild(cap);
+  for (const c of CITIES) {
+    const i = shown.indexOf(c), on = i >= 0, isHere = c === state.here;
+    const lab = document.createElement("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.checked = on; cb.value = c.name;
+    cb.disabled = isHere || (!on && full);
+    if (cb.disabled) lab.className = "off";
+    const sw = document.createElement("span"); sw.className = "sw";
+    sw.style.background = on ? CMP_COLORS[i % CMP_COLORS.length] : "transparent";
+    lab.appendChild(cb); lab.appendChild(sw);
+    lab.appendChild(document.createTextNode(c.name + (isHere ? " (here)" : "")));
+    menu.appendChild(lab);
+  }
+  const n = shown.length;
+  $("refSummary").textContent = n === 0 ? "none" : n === 1 ? shown[0].name : shown[0].name + " +" + (n - 1);
+}
+
 function fillZones(sel, chosen) {
   const zones = (typeof Intl.supportedValuesOf === "function")
     ? Intl.supportedValuesOf("timeZone")
@@ -2144,6 +2245,28 @@ function fillZones(sel, chosen) {
   }
 }
 
+/* Grid sizes columns before rows, so it cannot express "the clock column is as
+   wide as rows 3-4 are tall". Measure it instead. Row heights depend on the
+   viewport and on the full-width top and bottom bands, never on how the middle
+   row is split between columns, so this settles in one pass rather than
+   oscillating. Returns true when the width moved. */
+function fitClockColumn() {
+  const wrapEl = document.querySelector(".wrap");
+  if (!isRing()) { wrapEl.style.removeProperty("--clock-col"); return false; }
+  const card = document.querySelector(".w-clock"), h2 = card.querySelector("h2");
+  const cs = getComputedStyle(card), hs = getComputedStyle(h2);
+  const free = card.getBoundingClientRect().height
+    - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+    - h2.getBoundingClientRect().height - parseFloat(hs.marginBottom);
+  const want = Math.round(free + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight));
+  if (!(want > 0)) return false;
+  const prev = parseFloat(wrapEl.style.getPropertyValue("--clock-col"));
+  if (Math.abs(want - (prev || 0)) < 2) return false;
+  wrapEl.style.setProperty("--clock-col", want + "px");
+  return true;
+}
+let layoutDirty = true;
+
 /* invalidate everything that depends on geometry */
 function hardReset() {
   events.clearCache();
@@ -2154,10 +2277,13 @@ function hardReset() {
 /* ── controls ───────────────────────────────────────────────────────────── */
 const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 state.here = CITIES.find((c) => c.tz === browserTz) || CITIES[0];
-if (state.here === state.there) state.there = CITIES.find((c) => c.name === "Quito");
+/* if the browser lands us on one of the defaults, swap that slot rather than
+   showing the same place twice */
+if (state.theres.includes(state.here))
+  state.theres = state.theres.map((c) => c === state.here ? CITIES.find((x) => x.name === "Quito") : c);
 
 fillCities($("loc"), state.here, true);
-fillCities($("ref"), state.there, false);
+fillRefPicker();
 fillZones($("ctz"), browserTz);
 $("clat").value = state.here.lat.toFixed(4);
 $("clon").value = state.here.lon.toFixed(4);
@@ -2177,9 +2303,24 @@ $("loc").addEventListener("change", (e) => {
     $("ctz").value = state.here.tz;
   }
   $("whenTz").textContent = "(" + state.here.tz + ")";
+  fillRefPicker();   /* "here" is not offered as a comparison */
   syncWhen(true); hardReset();
 });
-$("ref").addEventListener("change", (e) => { state.there = CITIES.find((c) => c.name === e.target.value); hardReset(); });
+$("refMenu").addEventListener("change", (e) => {
+  const c = CITIES.find((x) => x.name === e.target.value);
+  if (!c) return;
+  state.theres = e.target.checked
+    ? state.theres.concat([c]).slice(0, REF_CAP)
+    : state.theres.filter((x) => x !== c);
+  fillRefPicker(); hardReset();
+});
+/* a <details> stays open until something closes it; a click anywhere else is
+   the expected dismissal for a dropdown */
+addEventListener("pointerdown", (e) => {
+  const p = $("refPick");
+  if (p.open && !p.contains(e.target)) p.open = false;
+}, true);
+$("refPick").addEventListener("keydown", (e) => { if (e.key === "Escape") $("refPick").open = false; });
 
 const applyCustom = () => {
   custom.lat = clamp(parseFloat($("clat").value) || 0, -90, 90);
@@ -2190,6 +2331,7 @@ const applyCustom = () => {
   $("loc").value = "__custom";
   $("customWrap").hidden = false;
   $("whenTz").textContent = "(" + custom.tz + ")";
+  fillRefPicker();   /* clears the "(here)" mark off whichever city held it */
   hardReset();
 };
 ["clat", "clon", "ctz"].forEach((id) => $(id).addEventListener("change", applyCustom));
@@ -2263,7 +2405,8 @@ function render() {
   const ctx = makeCtx();
   if (!ctx.fr) return;
   const heavyKey = [ctx.fr.midnight, ctx.s.segment, ctx.s.which, state.here.name, state.here.lat, state.here.lon,
-    state.there.name, state.base, state.elev, state.dayAxis, state.yearAxis, state.hour12, state.clockMode].join("|");
+    state.theres.map((c) => c.name).join(","), state.base, state.elev, state.dayAxis, state.yearAxis,
+    state.hour12, state.clockMode].join("|");
   ctx.heavy = heavyKey !== lastHeavy;
   lastHeavy = heavyKey;
 
@@ -2285,6 +2428,11 @@ function render() {
     txt.textContent = state.live ? "Live" : "Frozen · " + fmtDate(ctx.t, state.here.tz);
   }
   if (state.live && Date.now() - lastSync > 20000) { lastSync = Date.now(); syncWhen(false); }
+
+  /* Last, so it measures a settled layout: the compare strip is an auto row, and
+     how tall it is depends on how many places cmpW just drew. When the width
+     moves, the charts pick up their new cells on the render this asks for. */
+  if (ctx.heavy || layoutDirty) { layoutDirty = false; if (fitClockColumn()) requestRender(); }
 }
 /* one render per frame, driven by the single rAF loop below — a scheduled
    render on top of the loop just paid for the same work twice */
