@@ -508,8 +508,8 @@ dialog.sheet .sheet-close{margin-top:6px}
       <dt>Civil time</dt><dd id="rCivil">&mdash;</dd>
       <dt>Phase</dt><dd id="rPhase">&mdash;</dd>
       <dt>Anchor</dt><dd id="rAnchor">&mdash;</dd>
-      <dt>Sunrise</dt><dd id="rRise">&mdash;</dd>
-      <dt>Sunset</dt><dd id="rSet">&mdash;</dd>
+      <dt>Civil sunrise</dt><dd id="rRise">&mdash;</dd>
+      <dt>Civil sunset</dt><dd id="rSet">&mdash;</dd>
       <dt>Sun altitude</dt><dd id="rAlt">&mdash;</dd>
       <dt>SST day</dt><dd id="rSpan">&mdash;</dd>
       <dt>SST second</dt><dd id="rSec">&mdash;</dd>
@@ -1389,8 +1389,9 @@ const digitalW = (() => {
     const d = fr.day;
     rAnchor.innerHTML = d.anchor.toFixed(3) + "° <span class=\"badge" + (d.fallback ? " warn" : "") + "\">"
       + d.anchorName + (d.fallback ? " · " + d.fallback : "") + "</span>";
-    rRise.textContent = fmtClock(fr.rise, loc.tz) + "  ·  06:00 SST";
-    rSet.textContent = fmtClock(fr.set, loc.tz) + "  ·  20:00 SST";
+    /* the SST side of these is 06:00 and 20:00 by definition, so it is not shown */
+    rRise.textContent = fmtClock(fr.rise, loc.tz);
+    rSet.textContent = fmtClock(fr.set, loc.tz);
     const alt = solar.altitude(t, loc.lat, loc.lon), az = solar.azimuth(t, loc.lat, loc.lon);
     rAlt.textContent = alt.toFixed(2) + "°  ·  " + az.toFixed(0) + "° " + solar.compass(az);
     $("rSpan").textContent = fmtDur(fr.nextMidnight - fr.midnight) + "  ·  " + fmtClock(fr.midnight, loc.tz)
