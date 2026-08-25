@@ -1137,6 +1137,15 @@ const clockW = (() => {
     return `M${x0.toFixed(2)},${y0.toFixed(2)}A${r},${r} 0 ${large} 1 ${x1.toFixed(2)},${y1.toFixed(2)}`;
   };
   let dialKey = "", hands = null;
+  /* Marks on the live ring, with the instant each one falls at, so update() can
+     fade the ones the hour hand has already swept past. A ring covers 12 *real*
+     hours but is printed with *SST* hours, and an elastic SST hour means a ring
+     can hold 11, 12 or 13 of them — so "12" or "11" can legitimately appear
+     twice on the same ring (13 marks puts SST 00:00 and 12:00 together, 11 puts
+     SST 11:00 and 23:00 together). Which is which is then only readable from
+     where the hand is, so that is what the fade says. */
+  let sweep = [];
+  const PASSED = 0.32;
 
   /* A chronograph subdial: its own wheel, its own uniform 0–60 scale. The hand
      is free to change speed, it just has to finish its turn at the top. */
@@ -1168,6 +1177,7 @@ const clockW = (() => {
     svg.appendChild(g);
 
     const A = state.clockMode === "A";
+    sweep = [];
     if (A) buildElasticDial(g, fr);
     else buildFixedDial(g, fr);
 
@@ -1234,20 +1244,44 @@ const clockW = (() => {
         const a = ang(tt), label = String(h % 12 || 12);
         const [tx, ty] = P(ring.rr, a);
         const [mx0, my0] = P(ring.r - 5, a), [mx1, my1] = P(ring.r + 5, a);
-        g.appendChild(el("line", { x1: mx0, y1: my0, x2: mx1, y2: my1,
+        const line = g.appendChild(el("line", { x1: mx0, y1: my0, x2: mx1, y2: my1,
           stroke: isSun ? "var(--sun)" : (active ? "var(--dusk-lt)" : "var(--rule-2)"),
           "stroke-width": isSun ? 2 : 1.2, opacity: active ? 1 : 0.45 }));
-        g.appendChild(el("text", { x: tx, y: ty + ring.fs * 0.35, "text-anchor": "middle", "font-size": ring.fs,
+        const num = g.appendChild(el("text", { x: tx, y: ty + ring.fs * 0.35, "text-anchor": "middle", "font-size": ring.fs,
           class: "num", fill: isSun ? "var(--sun)" : (active ? "var(--ink)" : "var(--ink-3)"),
           opacity: active ? 1 : 0.32 }, label));
+        let dot = null;
         if (isSun) {
           const [sx, sy] = P(ring.r + 13, a);
-          g.appendChild(el("circle", { cx: sx, cy: sy, r: 2.6,
+          dot = g.appendChild(el("circle", { cx: sx, cy: sy, r: 2.6,
             fill: h === 6 ? "var(--sun-hi)" : "var(--dusk-dk)", opacity: active ? 1 : 0.3 }));
+        }
+        /* Both rings are tracked, but only the live one fades as the hand goes
+           by — the dormant ring is already printed faint, and dimming it further
+           would read as its numbers going missing. It is here so that a pair of
+           marks sharing a spot still resolves to one legible label. */
+        sweep.push({ t: tt, a, ring, active, near: [], past: null,
+          tick: line, num, dot,
+          base: { tick: active ? 1 : 0.45, num: active ? 1 : 0.32, dot: active ? 1 : 0.3 } });
+      }
+
+      /* Two marks can land close enough to print on top of each other — a
+         duplicate pair is the usual cause, and at temperate latitudes in
+         midsummer SST 00:00 and 12:00 can sit barely 2° apart. Pair them up
+         here; update() then prints only the one worth reading. */
+      const sep = (ring.fs * 1.25) / (ring.rr * Math.PI / 180);
+      const mine = sweep.filter((m) => m.ring === ring);
+      for (const m of mine) {
+        for (const n of mine) {
+          if (n !== m && Math.abs(((m.a - n.a + 540) % 360) - 180) < sep) m.near.push(n);
         }
       }
     });
   }
+
+  /* Of two marks sharing a spot, the useful one is the next the hand will reach;
+     once both are behind it, the one it passed most recently. */
+  const outranks = (n, m) => n.past !== m.past ? !n.past : (m.past ? n.t > m.t : n.t < m.t);
 
   /* Mode B — an ordinary dial; the hands are what stretch. */
   function buildFixedDial(g, fr) {
@@ -1300,6 +1334,22 @@ const clockW = (() => {
     }
     hands.hourHand.setAttribute("transform", `rotate(${ah.toFixed(3)})`);
     hands.phase.textContent = s.segment === "day" ? "DAYLIGHT" : (s.which === "pre-dawn" ? "BEFORE DAWN" : "AFTER DUSK");
+
+    /* what the hand has already swept goes quiet, so the mark still ahead of it
+       is the bright one — this runs every frame, hence the write only on change */
+    let flipped = false;
+    for (const m of sweep) {
+      const past = t >= m.t;
+      if (past !== m.past) { m.past = past; flipped = true; }
+    }
+    if (flipped) {
+      for (const m of sweep) {
+        const k = m.active && m.past ? PASSED : 1;
+        m.tick.setAttribute("opacity", m.base.tick * k);
+        if (m.dot) m.dot.setAttribute("opacity", m.base.dot * k);
+        m.num.setAttribute("opacity", m.near.some((n) => outranks(n, m)) ? 0 : m.base.num * k);
+      }
+    }
   }
   return { update, invalidate: () => { dialKey = ""; } };
 })();
