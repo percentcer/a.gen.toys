@@ -47,6 +47,9 @@ body{
 h1,h2,h3{margin:0; font-weight:600; letter-spacing:.2px}
 a{color:var(--sun-hi)}
 .wrap{max-width:1280px; margin:0 auto; padding:0 20px 80px}
+/* dissolved everywhere except the ring tier, where it puts the title and the
+   controls on one line and hands the controls the full page width */
+.topbar{display:contents}
 
 /* ── masthead ─────────────────────────────────────────── */
 header.mast{padding:34px 0 18px}
@@ -93,9 +96,10 @@ button:focus-visible{outline:2px solid var(--dusk-lt); outline-offset:1px}
 .row-year{grid-template-columns:1.35fr 1fr}
 .row-cmp{grid-template-columns:1fr}
 
-/* The Now row pins at every width; only how much of it pins changes. Whatever is
-   sticky must be a child of .wrap, or it unpins the moment its grid scrolls past
-   — hence display:contents at the narrower tiers. */
+/* Below the ring gate the page scrolls, so the Now row pins; only how much of it
+   pins changes. Whatever is sticky must be a child of .wrap, or it unpins the
+   moment its grid scrolls past — hence display:contents at the narrower tiers.
+   At the ring tier nothing scrolls and none of this applies. */
 
 /* three across — the whole row pins */
 .row-now{grid-template-columns:minmax(340px,400px) minmax(270px,.9fr) minmax(320px,1.1fr)}
@@ -226,11 +230,137 @@ details.tbl summary:hover{color:var(--ink-2)}
   figure.scroll{overflow-x:visible}
   figure.scroll > svg{min-width:0}
 }
+
+/* ── about sheet ──────────────────────────────────────────── */
+dialog.sheet{
+  background:var(--card); color:var(--ink);
+  border:1px solid var(--rule-2); border-radius:var(--r);
+  padding:20px 24px 16px; max-width:min(80ch,90vw); box-shadow:0 18px 60px #00000080;
+}
+dialog.sheet::backdrop{background:#0a0a14cc}
+dialog.sheet .foot{margin-top:0}
+dialog.sheet .sheet-close{margin-top:6px}
+
+/* ══ the ring: one screen, no scrolling ═══════════════════════════════════
+   Above this gate everything fits at once, so the page stops being four stacked
+   sections and becomes a single grid: the analogue clock in the middle at
+   whatever size its cell allows, the other seven widgets closing around it as a
+   border. Height is gated as well as width, and the height figure is empirical:
+   below roughly 860px the ring gives the clock *less* room than the scrolling
+   layout's 360px cap does, which defeats the point, so the scrolling layout
+   keeps those sizes. Must stay in step with ringQ in the script. */
+@media (min-width:1280px) and (min-height:860px){
+  html,body{height:100%; overflow:hidden}
+
+  .wrap{
+    max-width:2100px; height:100dvh; padding:12px 16px; gap:11px;
+    display:grid; min-height:0;
+    grid-template-columns:minmax(250px,1fr) minmax(400px,1.6fr) minmax(250px,1fr);
+    grid-template-rows:
+      auto                  /* masthead + controls              */
+      minmax(104px,.95fr)   /* solar altitude       — full width */
+      minmax(120px,1.62fr)  /* digital | CLOCK | year            */
+      minmax(120px,1.62fr)  /* stats   | CLOCK | hour length     */
+      minmax(104px,.95fr)   /* civil vs SST ruler   — full width */
+      auto;                 /* compare              — full width */
+  }
+
+  /* the four section grids and the pinpair dissolve, so their cards become
+     children of .wrap itself — the same display:contents flattening the pinpair
+     already used to drop into .row-now */
+  .grid,.pinpair{display:contents}
+  .sec-title{display:none}
+
+  .topbar{grid-area:1/1/2/4; display:flex; align-items:center; gap:14px; min-width:0}
+  header.mast{padding:0; flex:0 0 auto}
+  .mast h1{font-size:18px; letter-spacing:-.2px; white-space:nowrap}
+  .controls{flex:1 1 auto; min-width:0; margin:0; padding:6px 10px; gap:11px; flex-wrap:nowrap}
+  .controls .ctl{flex:0 1 auto}
+  /* nowrap keeps a two-word label from adding a second line to the whole bar;
+     the ellipsis stops it running into its neighbour once the bar gets tight */
+  .ctl > label{font-size:9.5px; letter-spacing:.7px; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis}
+  .controls select,.controls input{font-size:12px; padding:4px 6px}
+  .controls input[type=number]{width:56px}
+  .controls input[type=text].coord{width:72px}
+
+  .w-day    {grid-area:2/1/3/4}
+  .w-digital{grid-area:3/1/4/2}
+  .w-clock  {grid-area:3/2/5/3}
+  .w-year   {grid-area:3/3/4/4}
+  .w-stats  {grid-area:4/1/5/2}
+  .w-hour   {grid-area:4/3/5/4}
+  .w-ruler  {grid-area:5/1/6/4}
+  .w-cmp    {grid-area:6/1/7/4}
+
+  /* min-*:0 is load-bearing: a grid item floors at min-content and will refuse
+     to shrink to its track without it, which is what would bring the scrollbar
+     back. The chrome is trimmed too — four cards stack vertically here, so every
+     pixel of padding is paid for four times. */
+  .card{min-width:0; min-height:0; display:flex; flex-direction:column; padding:8px 11px 9px}
+  .card > h2{flex:0 0 auto; font-size:11px; margin-bottom:5px; gap:8px}
+  /* the toggles set the header's height, and the header is subtracted from the
+     plot in all four chart cards */
+  .card > h2 .seg button{padding:2px 8px; font-size:11.5px}
+  .card > figure{flex:1 1 auto; min-height:0}
+  .card > figure > svg{width:100%; height:100%}
+  .legend{flex:0 0 auto; margin-top:4px; font-size:10px; gap:9px}
+  details.tbl{flex:0 0 auto}
+  details.tbl summary{margin-top:4px}
+  /* the page never scrolls; one opened table does */
+  details.tbl > div{max-height:104px; overflow:auto}
+
+  /* The two full-width bars are the shortest cells in the ring and have acres of
+     empty header, so their legend and table toggle move up into it rather than
+     taking another 16px off the plot. The side columns are too narrow for that,
+     so theirs stay put. */
+  .w-day,.w-ruler{position:relative}
+  .w-day > .legend,.w-ruler > details.tbl{
+    position:absolute; top:7px; left:190px; right:150px; margin:0;
+    flex-wrap:nowrap; overflow:hidden;
+  }
+  .w-ruler > details.tbl{left:auto; right:11px; text-align:right}
+  .w-ruler > details.tbl summary{margin-top:0}
+  .w-ruler > details.tbl[open] > div{
+    position:absolute; right:0; top:20px; width:min(560px,60vw);
+    background:var(--card-2); border:1px solid var(--rule); border-radius:var(--r);
+    padding:4px 8px; z-index:5;
+  }
+
+  /* the clock is height-bound by its cell, not capped at 360px as it is in the
+     scrolling layout — it is the one widget meant to grow */
+  .w-clock .clockwrap{flex:1 1 auto; min-height:0; justify-content:center; gap:0}
+  #clock{max-width:100%; max-height:100%; width:auto; height:100%; margin:0 auto}
+
+  .w-digital .digital{flex:0 0 auto; font-size:clamp(24px,2.1vw,34px)}
+  /* the readouts are a fixed eight rows, but the stat sheet grows an extra full-
+     width card per anomaly (polar fallback, incoherent day, degenerate day) and
+     those carry a paragraph each. Both panels take the overflow themselves so
+     the page does not have to. */
+  .w-digital .readouts{flex:1 1 auto; min-height:0; margin-top:6px; gap:1px 12px; font-size:11px; overflow:auto}
+  .w-stats .stats{flex:1 1 auto; min-height:0; align-content:start; gap:7px; overflow:auto}
+  .w-stats .stat{padding:6px 9px}
+  .w-stats .stat .v{font-size:15px}
+  .w-stats .stat .d{font-size:10.5px}
+  .card ::-webkit-scrollbar{width:7px; height:7px}
+  .card ::-webkit-scrollbar-thumb{background:var(--rule-2); border-radius:4px}
+  .card ::-webkit-scrollbar-track{background:transparent}
+  .w-cmp{padding:7px 9px}
+  .w-cmp .cmp{gap:10px}
+  .w-cmp .cmp-loc{padding:7px 10px; gap:10px}
+  .w-cmp .cmp-loc .mini{width:62px}
+  .w-cmp .cmp-loc .name{font-size:12px}
+  .w-cmp .cmp-loc .big{font-size:19px; margin:2px 0 1px}
+  /* the four readout lines run as one wrapping row here, so the strip costs two
+     lines of height instead of four */
+  .w-cmp .cmp-loc .sm{font-size:10.5px; line-height:1.32; display:flex; flex-wrap:wrap; gap:0 14px}
+}
 </style>
 </head>
 <body>
 <div class="wrap">
 
+<div class="topbar">
 <header class="mast">
   <div class="title">
     <h1>Sunset Standard Time</h1>
@@ -278,12 +408,14 @@ details.tbl summary:hover{color:var(--ink-2)}
   </div>
   <div class="spacer"></div>
   <div class="livebadge" id="live"><span class="dot"></span><span id="liveTxt">Live</span></div>
+  <button id="aboutBtn" aria-haspopup="dialog">About</button>
+</div>
 </div>
 
 <div class="sec-title">Now</div>
 <div class="grid row-now">
   <div class="pinpair">
-  <section class="card pinned" aria-label="Analogue Sunset Standard Time clock">
+  <section class="card pinned w-clock" aria-label="Analogue Sunset Standard Time clock">
     <h2>Analogue SST
       <span class="tools">
         <span class="seg" role="group" aria-label="Clock mode">
@@ -298,7 +430,7 @@ details.tbl summary:hover{color:var(--ink-2)}
     </div>
   </section>
 
-  <section class="card" aria-label="Digital Sunset Standard Time">
+  <section class="card w-digital" aria-label="Digital Sunset Standard Time">
     <h2>Digital SST
       <span class="tools">
         <span class="seg" role="group" aria-label="Hour format">
@@ -321,7 +453,7 @@ details.tbl summary:hover{color:var(--ink-2)}
   </section>
   </div>
 
-  <section class="card" aria-label="Stat sheet">
+  <section class="card w-stats" aria-label="Stat sheet">
     <h2>Stat Sheet</h2>
     <div class="stats" id="stats"></div>
   </section>
@@ -329,7 +461,7 @@ details.tbl summary:hover{color:var(--ink-2)}
 
 <div class="sec-title">Today</div>
 <div class="grid">
-  <section class="card" aria-label="Sun altitude through the day">
+  <section class="card w-day" aria-label="Sun altitude through the day">
     <h2>Solar Altitude
       <span class="tools">
         <span class="seg" role="group" aria-label="Horizontal axis">
@@ -343,7 +475,7 @@ details.tbl summary:hover{color:var(--ink-2)}
     <div class="legend" id="dayLegend"></div>
   </section>
 
-  <section class="card" aria-label="Civil hours against SST hours">
+  <section class="card w-ruler" aria-label="Civil hours against SST hours">
     <h2>Civil hours vs SST hours</h2>
     <figure class="scroll"><svg id="ruler" viewBox="0 0 1100 230" role="img"
       aria-label="Dual ruler comparing civil clock hours with SST hours"></svg></figure>
@@ -353,7 +485,7 @@ details.tbl summary:hover{color:var(--ink-2)}
 
 <div class="sec-title">This year</div>
 <div class="grid row-year">
-  <section class="card" aria-label="Sun graph for the year">
+  <section class="card w-year" aria-label="Sun graph for the year">
     <h2>Year graph
       <span class="tools">
         <span class="seg" role="group" aria-label="Vertical axis">
@@ -367,7 +499,7 @@ details.tbl summary:hover{color:var(--ink-2)}
     <div class="legend" id="yearLegend"></div>
   </section>
 
-  <section class="card" aria-label="Length of an SST hour through the year">
+  <section class="card w-hour" aria-label="Length of an SST hour through the year">
     <h2>How long is an hour? <span class="hint">real minutes per SST hour</span></h2>
     <figure><svg id="hourLen" viewBox="0 0 520 380" role="img"
       aria-label="Length in real minutes of day hours and night hours across the year"></svg></figure>
@@ -378,7 +510,7 @@ details.tbl summary:hover{color:var(--ink-2)}
 
 <div class="sec-title">Compare</div>
 <div class="grid row-cmp">
-  <section class="card" aria-label="Comparison with a reference location">
+  <section class="card w-cmp" aria-label="Comparison with a reference location">
     <div class="cmp">
       <div class="cmp-loc" id="cmpHere"></div>
       <div class="cmp-loc" id="cmpThere"></div>
@@ -386,8 +518,11 @@ details.tbl summary:hover{color:var(--ink-2)}
   </section>
 </div>
 
-<div class="foot">
-  <h3>How this is computed</h3>
+</div>
+
+<dialog id="about" class="sheet" aria-labelledby="aboutTitle">
+  <div class="foot">
+    <h3 id="aboutTitle">How this is computed</h3>
   <p>Solar position comes from the NOAA solar-position algorithm evaluated in the browser; sunrise and
   sunset are found by bisecting the solar altitude curve rather than by a closed-form formula, which is
   what lets the polar cases fall out of the same code path.</p>
@@ -397,10 +532,11 @@ details.tbl summary:hover{color:var(--ink-2)}
   <p><b>When the sun does not cross the horizon</b> the anchor moves to the nearest usable threshold the
   sun's daily arc does contain &mdash; civil, nautical or astronomical twilight during polar night, and the
   mirrored <code>+6&deg;/+12&deg;/+18&deg;</code> elevations during polar day &mdash; and finally clamps
-  just inside the day's altitude range. The anchor in force is always named above.</p>
-</div>
+    just inside the day's altitude range. The anchor in force is always named above.</p>
+  </div>
+  <form method="dialog"><button class="sheet-close">Close</button></form>
+</dialog>
 
-</div>
 <div class="tip" id="tip" role="status" aria-live="off"></div>
 
 <script>
@@ -413,8 +549,25 @@ const $ = (id) => document.getElementById(id);
 const DAYMS = 86400000, HOURMS = 3600000, MINMS = 60000;
 const RAD = Math.PI / 180, DEG = 180 / Math.PI;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
-/* must match the @media breakpoint the layout uses */
-const isNarrow = () => innerWidth < 720;
+/* Both tiers must match the @media queries the layout uses, or a chart will draw
+   at a geometry the cell it lands in cannot hold. Keep the literals adjacent. */
+const isNarrow = () => innerWidth < 720;                                  /* @media (max-width:720px)  */
+const ringQ = matchMedia("(min-width:1280px) and (min-height:860px)");    /* the no-scroll ring tier   */
+const isRing = () => ringQ.matches;
+
+/* In the ring tier a chart is bounded by its grid cell rather than by the page
+   width, so the viewBox is measured off that cell and drawn at one user unit per
+   CSS pixel. Nothing is letterboxed and every font-size stays literal at any
+   window size. The figure's own height comes from the card, never from the svg,
+   so measuring here cannot feed back into layout. Snapped to a 10px bucket so a
+   slow drag-resize does not rebuild on every frame. */
+function cellBox(svg) {
+  if (!isRing()) return null;
+  const r = svg.parentNode.getBoundingClientRect();
+  if (r.width < 80 || r.height < 40) return null;    /* not laid out yet */
+  return { W: Math.round(r.width / 10) * 10, H: Math.round(r.height / 10) * 10 };
+}
+const cellKey = (svg) => { const c = cellBox(svg); return c ? c.W + "x" + c.H : "flow"; };
 const lerp = (a, b, t) => a + (b - a) * t;
 
 function el(tag, attrs, kids) {
@@ -1220,9 +1373,13 @@ const dayCurveW = (() => {
      overflowing into a horizontal scrollbar */
   let W, H, L, R, T, B, PW, PH, xStep;
   function metrics() {
-    if (isNarrow()) { W = 400; H = 240; L = 34; R = 12; T = 14; B = 30; xStep = 4; }
-    else            { W = 1100; H = 320; L = 52; R = 22; T = 16; B = 38; xStep = 2; }
+    const cell = cellBox(svg);
+    if (cell)            { W = cell.W; H = cell.H; L = 46; R = 20; T = 14; B = 28; }
+    else if (isNarrow()) { W = 400; H = 240; L = 34; R = 12; T = 14; B = 30; xStep = 4; }
+    else                 { W = 1100; H = 320; L = 52; R = 22; T = 16; B = 38; xStep = 2; }
     PW = W - L - R; PH = H - T - B;
+    /* one tick per hour only once they are far enough apart to read */
+    if (cell) xStep = PW > 1150 ? 1 : PW > 620 ? 2 : 3;
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
   }
   metrics();
@@ -1298,13 +1455,16 @@ const dayCurveW = (() => {
       const x = xOfT(t);
       g.appendChild(el("line", { x1: x, y1: T, x2: x, y2: T + PH, stroke: color, "stroke-width": 1, opacity: .55 }));
       const side = mid ? "middle" : (x > L + PW * 0.62 ? "end" : "start");
-      const dx = side === "end" ? -7 : side === "middle" ? 0 : 7, y0 = T + 14 + row * 46;
+      /* a shallow plot has no room to stagger the stacks, and they are far enough
+         apart horizontally there that they do not need it */
+      const stagger = PH > 200 ? 46 : 0, third = PH > 110;
+      const dx = side === "end" ? -7 : side === "middle" ? 0 : 7, y0 = T + 14 + row * stagger;
       const halo = { "paint-order": "stroke", stroke: "#12122099", "stroke-width": 3.5, "stroke-linejoin": "round" };
       const txt = (yy, size, fill, cls, s) => g.appendChild(el("text",
         Object.assign({ x: x + dx, y: yy, "text-anchor": side, "font-size": size, fill, class: cls }, halo), s));
       txt(y0, 11, color, null, label);
       txt(y0 + 15, 12.5, "var(--ink)", "num", l2);
-      if (l3) txt(y0 + 29, 11, "var(--ink-2)", "num", l3);
+      if (l3 && third) txt(y0 + 29, 11, "var(--ink-2)", "num", l3);
     };
     evt(fr.rise, "RISE", fmtClock(fr.rise, loc.tz), "06:00 SST", "var(--sun-hi)", 0);
     if (fr.day.noon > t0 && fr.day.noon < t1)
@@ -1362,7 +1522,7 @@ const dayCurveW = (() => {
 
   function update(ctx) {
     const { fr, t, loc } = ctx;
-    const key = [fr.midnight, loc.lat, loc.lon, state.base, state.elev, state.dayAxis, isNarrow()].join("|");
+    const key = [fr.midnight, loc.lat, loc.lon, state.base, state.elev, state.dayAxis, isNarrow(), cellKey(svg)].join("|");
     if (key !== update.key) { update.key = key; build(ctx); }
     const tc = clamp(t, cache.t0, cache.t1);
     const x = cache.xOfT(tc), y = cache.yOf(solar.altitude(tc, loc.lat, loc.lon));
@@ -1405,11 +1565,22 @@ const dayCurveW = (() => {
 /* ── 7e. civil ruler vs SST ruler ───────────────────────────────────────── */
 const rulerW = (() => {
   const svg = $("ruler");
-  let W, H, L, R, PW, TOP, BOT, BH, xStep;
+  let W, H, L, R, PW, TOP, BOT, BH, xStep, sideCaps;
   function metrics() {
-    if (isNarrow()) { W = 400; H = 160; L = 14; R = 14; TOP = 46; BOT = 101; BH = 16; xStep = 4; }
-    else            { W = 1100; H = 230; L = 20; R = 20; TOP = 46; BOT = 156; BH = 32; xStep = 2; }
+    const cell = cellBox(svg);
+    sideCaps = !!cell;
+    if (cell) {
+      /* the cell is short and very wide, so the two captions move off the top and
+         bottom edges — where they would cost 27px of the little height there is —
+         and sit beside their own bar instead, in space that was going spare */
+      W = cell.W; H = cell.H; L = 46; R = 20;
+      BH = clamp(Math.round(H * 0.17), 11, 32);
+      TOP = 20; BOT = H - 22 - BH;
+    }
+    else if (isNarrow()) { W = 400; H = 160; L = 14; R = 14; TOP = 46; BOT = 101; BH = 16; xStep = 4; }
+    else                 { W = 1100; H = 230; L = 20; R = 20; TOP = 46; BOT = 156; BH = 32; xStep = 2; }
     PW = W - L - R;
+    if (cell) xStep = PW > 1150 ? 1 : PW > 620 ? 2 : 3;
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
   }
   metrics();
@@ -1493,10 +1664,17 @@ const rulerW = (() => {
     }
 
     /* labels */
-    svg.appendChild(el("text", { x: L, y: 13, "font-size": 10.5, "letter-spacing": 1.4, fill: "var(--s3)" },
-      "CIVIL CLOCK"));
-    svg.appendChild(el("text", { x: L, y: H - 4, "font-size": 10.5, "letter-spacing": 1.4, fill: "var(--s1)" },
-      "SUNSET STANDARD TIME"));
+    if (sideCaps) {
+      svg.appendChild(el("text", { x: 0, y: TOP + BH / 2 + 3.5, "font-size": 10, "letter-spacing": 1.1,
+        fill: "var(--s3)" }, "CIVIL"));
+      svg.appendChild(el("text", { x: 0, y: BOT + BH / 2 + 3.5, "font-size": 10, "letter-spacing": 1.1,
+        fill: "var(--s1)" }, "SST"));
+    } else {
+      svg.appendChild(el("text", { x: L, y: 13, "font-size": 10.5, "letter-spacing": 1.4, fill: "var(--s3)" },
+        "CIVIL CLOCK"));
+      svg.appendChild(el("text", { x: L, y: H - 4, "font-size": 10.5, "letter-spacing": 1.4, fill: "var(--s1)" },
+        "SUNSET STANDARD TIME"));
+    }
     for (const t of civilHours.concat([t1])) {
       if (tzParts(t, loc.tz).h % xStep !== 0 && t !== t1) continue;
       const x = xOf(t);
@@ -1522,7 +1700,7 @@ const rulerW = (() => {
   function update(ctx) {
     const { t, loc } = ctx;
     const win = civilWindow(t, loc);
-    const key = [win.t0, loc.lat, loc.lon, state.base, state.elev, isNarrow()].join("|");
+    const key = [win.t0, loc.lat, loc.lon, state.base, state.elev, isNarrow(), cellKey(svg)].join("|");
     if (key !== update.key) { update.key = key; build(ctx); }
     const x = cache.xOf(clamp(t, cache.t0, cache.t1 - 1));
     live.cross.setAttribute("x1", x); live.cross.setAttribute("x2", x);
@@ -1607,7 +1785,18 @@ const yearStore = (() => {
 /* ── 7g. year band chart ────────────────────────────────────────────────── */
 const yearW = (() => {
   const svg = $("yearBands");
-  const W = 660, H = 380, L = 42, R = 14, T = 12, B = 30, PW = W - L - R, PH = H - T - B;
+  let W, H, L, R, T, B, PW, PH, hStep, mStep;
+  function metrics() {
+    const cell = cellBox(svg);
+    if (cell) { W = cell.W; H = cell.H; L = 32; R = 12; T = 10; B = 24; }
+    else      { W = 660; H = 380; L = 42; R = 14; T = 12; B = 30; }
+    PW = W - L - R; PH = H - T - B;
+    /* thin the hour ticks and the month names until each one has room to be read */
+    hStep = PH > 300 ? 2 : PH > 170 ? 4 : 6;
+    mStep = PW > 520 ? 1 : PW > 300 ? 2 : 3;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  }
+  metrics();
   let data = null, marker = null, geo = null;
   const LEGEND = [
     { color: "var(--t-day-a)", label: "daylight (SST 06:00–20:00)" },
@@ -1625,6 +1814,7 @@ const yearW = (() => {
   function build(loc, cfg) {
     if (!data) return;
     const days = data.days, n = days.length;
+    metrics();
     clear(svg);
     const X = (i) => L + PW * i / (n - 1);
     const Y = (h) => T + PH * (1 - clamp(h, 0, 24) / 24);
@@ -1670,6 +1860,9 @@ const yearW = (() => {
     for (let h = 0; h <= 24; h += 2) {
       const y = Y(h);
       svg.appendChild(el("line", { x1: L, y1: y, x2: L + PW, y2: y, stroke: "#ffffff", opacity: .05 }));
+      /* sunrise and sunset keep their labels on the SST axis at every density —
+         they are the whole point of that axis */
+      if (h % hStep !== 0 && !(sstMode && (h === 6 || h === 20))) continue;
       svg.appendChild(el("text", { x: L - 7, y: y + 3.5, "text-anchor": "end", "font-size": 10, class: "num",
         fill: (sstMode && (h === 6 || h === 20)) ? "var(--sun)" : "var(--ink-3)" }, pad2(h)));
     }
@@ -1682,6 +1875,7 @@ const yearW = (() => {
     for (const { m, idx } of monthAt) {
       const x = X(idx);
       svg.appendChild(el("line", { x1: x, y1: T, x2: x, y2: T + PH, stroke: "#ffffff", opacity: .06 }));
+      if (m % mStep !== 0) continue;
       svg.appendChild(el("text", { x: x + 3, y: H - 12, "font-size": 10 },
         ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m]));
     }
@@ -1699,9 +1893,9 @@ const yearW = (() => {
   function update(ctx) {
     const { t, loc, cfg } = ctx;
     yearStore.ensure(loc, cfg, tzParts(t, loc.tz).y, () => {});
-    const d = yearStore.get();
-    if (d !== data) {
-      data = d;
+    const d = yearStore.get(), ck = cellKey(svg);
+    if (d !== data || ck !== update.cell) {
+      data = d; update.cell = ck;
       if (data) build(loc, cfg); else { clear(svg); marker = null; geo = null; }
     }
     if (data) place(ctx);
@@ -1745,12 +1939,24 @@ const yearW = (() => {
 /* ── 7h. how long is an hour ────────────────────────────────────────────── */
 const hourW = (() => {
   const svg = $("hourLen");
-  const W = 520, H = 380, L = 46, R = 66, T = 14, B = 30, PW = W - L - R, PH = H - T - B;
+  let W, H, L, R, T, B, PW, PH, yStep, mStep;
+  function metrics() {
+    const cell = cellBox(svg);
+    /* R holds the two series names printed off the right-hand end of the lines */
+    if (cell) { W = cell.W; H = cell.H; L = 34; R = 44; T = 12; B = 24; }
+    else      { W = 520; H = 380; L = 46; R = 66; T = 14; B = 30; }
+    PW = W - L - R; PH = H - T - B;
+    yStep = PH > 250 ? 15 : 30;
+    mStep = PW > 380 ? 2 : 3;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  }
+  metrics();
   let data = null, marker = null, geo = null;
 
   function build() {
     if (!data) return;
     const days = data.days, n = days.length;
+    metrics();
     clear(svg);
     let hi = 0;
     for (const d of days) hi = Math.max(hi, d.dayHour, d.nightHour);
@@ -1758,7 +1964,7 @@ const hourW = (() => {
     const X = (i) => L + PW * i / (n - 1);
     const Y = (m) => T + PH * (1 - clamp(m, 0, hi) / hi);
 
-    for (let m = 0; m <= hi; m += 15) {
+    for (let m = 0; m <= hi; m += yStep) {
       const y = Y(m);
       svg.appendChild(el("line", { x1: L, y1: y, x2: L + PW, y2: y, stroke: "#ffffff", opacity: .05 }));
       svg.appendChild(el("text", { x: L - 7, y: y + 3.5, "text-anchor": "end", "font-size": 10, class: "num" }, String(m)));
@@ -1775,7 +1981,7 @@ const hourW = (() => {
       const idx = clamp(Math.round((events.dayStartFor(t, data.loc.lon) - days[0].dayStart) / DAYMS), 0, n - 1);
       const x = X(idx);
       svg.appendChild(el("line", { x1: x, y1: T, x2: x, y2: T + PH, stroke: "#ffffff", opacity: .05 }));
-      if (m % 2 === 0) svg.appendChild(el("text", { x: x + 3, y: H - 12, "font-size": 10 },
+      if (m % mStep === 0) svg.appendChild(el("text", { x: x + 3, y: H - 12, "font-size": 10 },
         ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m]));
     }
 
@@ -1810,8 +2016,8 @@ const hourW = (() => {
   }
 
   function update(ctx) {
-    const d = yearStore.get();
-    if (d !== data) { data = d; build(); }
+    const d = yearStore.get(), ck = cellKey(svg);
+    if (d !== data || ck !== update.cell) { data = d; update.cell = ck; build(); }
     if (marker && data && geo) {
       const idx = clamp(Math.round((events.dayStartFor(ctx.t, ctx.loc.lon) - data.days[0].dayStart) / DAYMS), 0, geo.n - 1);
       const x = geo.X(idx);
@@ -2037,6 +2243,13 @@ segPair("yrCivil", "yrSst", () => { state.yearAxis = "civil"; yearW.rebuild(make
                             () => { state.yearAxis = "sst"; yearW.rebuild(makeCtx()); requestRender(); });
 
 yearStore.onReady(() => { hourW.rebuild(); requestRender(); });
+
+/* ── about sheet ────────────────────────────────────────────────────────── */
+const aboutDlg = $("about");
+$("aboutBtn").addEventListener("click", () => aboutDlg.showModal());
+/* a <dialog>'s backdrop is painted by the element itself, so a click that lands
+   outside the content box is a click on the dialog */
+aboutDlg.addEventListener("click", (e) => { if (e.target === aboutDlg) aboutDlg.close(); });
 
 /* ── the loop ───────────────────────────────────────────────────────────── */
 function makeCtx() {
