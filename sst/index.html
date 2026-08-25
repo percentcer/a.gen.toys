@@ -311,9 +311,12 @@ dialog.sheet .sheet-close{margin-top:6px}
   .grid,.pinpair{display:contents}
   .sec-title{display:none}
 
-  .topbar{grid-area:1/1/2/5; display:flex; align-items:center; gap:14px; min-width:0}
-  header.mast{padding:0; flex:0 0 auto}
-  .mast h1{font-size:18px; letter-spacing:-.2px; white-space:nowrap}
+  .topbar{grid-area:1/1/2/5; display:flex; align-items:center; min-width:0}
+  /* the masthead is the one thing in the ring with no panel around it, so it
+     goes. Hidden the .sr way rather than display:none, to leave the document
+     its only h1 — the controls bar takes the whole row. */
+  header.mast{position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0}
   .controls{flex:1 1 auto; min-width:0; margin:0; padding:6px 10px; gap:11px; flex-wrap:nowrap}
   .controls .ctl{flex:0 1 auto}
   /* a clipped datetime field loses digits rather than just looking tight, so it
