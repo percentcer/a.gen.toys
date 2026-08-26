@@ -598,17 +598,23 @@ dialog.sheet .sheet-close{margin-top:6px}
 
 <dialog id="about" class="sheet" aria-labelledby="aboutTitle">
   <div class="foot">
+    <h3 id="whatIsThisTitle">What is this</h3>
+    <p>Sunset Standard Time is a 24-hour <a
+        href="https://en.wikipedia.org/wiki/Time_standard#Time_standards_based_on_Earth_rotation">time standard</a>
+      that defines sunrise to be at 6:00am and sunset to be at 8:00pm.
+      It is similar to <a href="https://en.wikipedia.org/wiki/Solar_time#Apparent_solar_time">apparent solar time</a>,
+      with adaptations to fit our modern forms of timekeeping.</p>
     <h3 id="aboutTitle">How this is computed</h3>
-  <p>Solar position comes from the NOAA solar-position algorithm evaluated in the browser; sunrise and
-  sunset are found by bisecting the solar altitude curve rather than by a closed-form formula, which is
-  what lets the polar cases fall out of the same code path.</p>
-  <p><b>Night has two lengths inside one SST day.</b> Hours 00:00&ndash;06:00 are carved out of the night
-  that is ending; hours 20:00&ndash;24:00 out of the night that is beginning. Those nights differ, so the
-  first and last hours of an SST day are not the same size.</p>
-  <p><b>When the sun does not cross the horizon</b> the anchor moves to the nearest usable threshold the
-  sun's daily arc does contain &mdash; civil, nautical or astronomical twilight during polar night, and the
-  mirrored <code>+6&deg;/+12&deg;/+18&deg;</code> elevations during polar day &mdash; and finally clamps
-    just inside the day's altitude range. The anchor in force is always named above.</p>
+    <p>Solar position comes from the NOAA solar-position algorithm evaluated in the browser; sunrise and
+      sunset are found by bisecting the solar altitude curve rather than by a closed-form formula, which is
+      what lets the polar cases fall out of the same code path.</p>
+    <p><b>Night has two lengths inside one SST day.</b> Hours 00:00&ndash;06:00 are carved out of the night
+      that is ending; hours 20:00&ndash;24:00 out of the night that is beginning. Those nights differ, so the
+      first and last hours of an SST day are not the same size.</p>
+    <p><b>When the sun does not cross the horizon</b> the anchor moves to the nearest usable threshold the
+      sun's daily arc does contain &mdash; civil, nautical or astronomical twilight during polar night, and the
+      mirrored <code>+6&deg;/+12&deg;/+18&deg;</code> elevations during polar day &mdash; and finally clamps
+      just inside the day's altitude range. The anchor in force is always named above.</p>
   </div>
   <form method="dialog"><button class="sheet-close">Close</button></form>
 </dialog>
