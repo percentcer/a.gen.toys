@@ -685,12 +685,90 @@ function tzOffsetMs(ms, tz) {
   const p = tzParts(ms, tz);
   return Date.UTC(p.y, p.mo - 1, p.d, p.h, p.mi, p.s) - Math.floor(ms / 1000) * 1000;
 }
+/**
+ * The instant a zone's UTC offset changes inside [t0,t1), with the size of the
+ * change, or null if it holds steady. The offset is a step function, so a
+ * bisection on the minute finds the edge in about a dozen probes.
+ */
+function offsetShift(t0, t1, tz) {
+  const a = tzOffsetMs(t0, tz), b = tzOffsetMs(t1 - 1, tz);
+  if (a === b) return null;
+  let lo = t0, hi = t1;
+  while (hi - lo > MINMS) {
+    const mid = lo + Math.round((hi - lo) / 2 / MINMS) * MINMS;
+    if (mid <= lo || mid >= hi) break;
+    if (tzOffsetMs(mid, tz) === a) lo = mid; else hi = mid;
+  }
+  return { at: hi, delta: b - a };
+}
+
 /** wall-clock fields in `tz` -> absolute instant */
 function wallToInstant(y, mo, d, h, mi, tz) {
   const naive = Date.UTC(y, mo - 1, d, h, mi, 0);
   let t = naive - tzOffsetMs(naive, tz);
   t = naive - tzOffsetMs(t, tz);
-  return naive - tzOffsetMs(t, tz);
+  t = naive - tzOffsetMs(t, tz);
+  /* A wall time inside a spring-forward gap names no instant, and the fixpoint
+     answers with one an offset past it — so a field stepped through the missing
+     hour reads 02:00→03:00, 02:30→03:30, 03:00→03:00, walking real time
+     backwards halfway through. Collapse the gap to the instant the clocks moved:
+     stepping stalls there and then carries on forwards. */
+  const p = tzParts(t, tz);
+  if (p.h !== h || p.mi !== mi) {
+    const s = offsetShift(t - 3 * HOURMS, t + 3 * HOURMS, tz);
+    if (s && s.delta > 0) return s.at;
+  }
+  return t;
+}
+/**
+ * The civil day (midnight to midnight, so 23 or 25 hours twice a year) around
+ * `ms`, with everything the inverse map below needs to place an hour inside it.
+ * Every caller asks for the same day on every frame and the answer costs ten Intl
+ * round-trips, so days are memoised the way the formatters above are.
+ */
+const dayCache = new Map();
+function civilDay(ms, tz) {
+  const a = tzParts(ms, tz);
+  const key = tz + "|" + a.y + "-" + a.mo + "-" + a.d;
+  let w = dayCache.get(key);
+  if (!w) {
+    const t0 = wallToInstant(a.y, a.mo, a.d, 0, 0, tz);
+    const b = tzParts(t0 + 36 * HOURMS, tz);
+    const p0 = tzParts(t0, tz);
+    w = {
+      t0, t1: wallToInstant(b.y, b.mo, b.d, 0, 0, tz),
+      /* normally 0, but a zone that moves its clocks at midnight has no 00:00 on
+         the day it springs forward, so that day opens at 01:00 */
+      h0: p0.h + p0.mi / 60 + p0.s / 3600,
+      shift: null
+    };
+    w.shift = offsetShift(w.t0, w.t1, tz);
+    if (dayCache.size > 64) dayCache.clear();
+    dayCache.set(key, w);
+  }
+  return w;
+}
+/**
+ * Inverse of yCivil: a civil hour-of-day back to the instant it names, inside one
+ * civil day. Round-tripping through wall-clock fields cannot do this, because on
+ * the two transition days the axis is not a bijection — an hour of it is missing
+ * in spring and doubled in autumn. Both bands are resolved here so the map stays
+ * monotonic and still reaches every instant in the day; anything reading SST off
+ * this axis would otherwise see the clock lurch backwards or skip an hour.
+ */
+function civilToInstant(hrs, w) {
+  const fit = (ms) => clamp(ms, w.t0, w.t1 - 1);
+  const before = (h) => fit(w.t0 + (h - w.h0) * HOURMS);
+  const s = w.shift;
+  if (!s) return before(hrs);
+  const wBefore = w.h0 + (s.at - w.t0) / HOURMS;   /* the wall hour the shift left */
+  const wAfter = wBefore + s.delta / HOURMS;       /* the wall hour it arrived at  */
+  const lo = Math.min(wBefore, wAfter), hi = Math.max(wBefore, wAfter);
+  if (hrs <= lo) return before(hrs);
+  if (hrs >= hi) return fit(s.at + (hrs - wAfter) * HOURMS);
+  return s.delta > 0
+    ? s.at                                          /* missing: nothing to point at */
+    : fit(before(lo) + (hrs - lo) * 2 * HOURMS);    /* doubled: both passes, half speed */
 }
 /* Intl.DateTimeFormat construction is expensive and this runs a dozen times a
    frame, so formatters are memoised per (zone, option-set). */
@@ -1785,21 +1863,14 @@ const rulerW = (() => {
   const tintFor = (alt, anchor) => alt >= anchor ? "var(--t-day-a)" : alt >= -6 ? "var(--t-civil)"
     : alt >= -12 ? "var(--t-naut)" : alt >= -18 ? "var(--t-astro)" : "var(--t-night)";
 
-  /* the bar spans one civil day, midnight to midnight, so the civil ruler's ends
-     are nailed to the edges; whatever SST is doing gets clipped by that window */
-  function civilWindow(t, loc) {
-    const a = tzParts(t, loc.tz);
-    const t0 = wallToInstant(a.y, a.mo, a.d, 0, 0, loc.tz);
-    const b = tzParts(t0 + 36 * HOURMS, loc.tz);
-    return { t0, t1: wallToInstant(b.y, b.mo, b.d, 0, 0, loc.tz) };
-  }
-
   function build(ctx) {
     const { loc } = ctx;
     metrics();
     clear(svg);
     const cfg = cfgFor();
-    const { t0, t1 } = civilWindow(ctx.t, loc);
+    /* the bar spans one civil day, midnight to midnight, so the civil ruler's ends
+       are nailed to the edges; whatever SST is doing gets clipped by that window */
+    const { t0, t1 } = civilDay(ctx.t, loc.tz);
     const xOf = (t) => L + PW * (t - t0) / (t1 - t0);
 
     const seg = 720;
@@ -1895,7 +1966,7 @@ const rulerW = (() => {
 
   function update(ctx) {
     const { t, loc } = ctx;
-    const win = civilWindow(t, loc);
+    const win = civilDay(t, loc.tz);
     const key = [win.t0, loc.lat, loc.lon, state.base, state.elev, isNarrow(), cellKey(svg)].join("|");
     if (key !== update.key) { update.key = key; build(ctx); }
     const x = cache.xOf(clamp(t, cache.t0, cache.t1 - 1));
@@ -2118,8 +2189,7 @@ const yearW = (() => {
       const fr = sst.frame(d.rise, loc, cfg);
       t = sst.toInstant(hrs, fr);
     } else {
-      const pp = tzParts(d.dayStart + 12 * HOURMS, loc.tz);
-      t = wallToInstant(pp.y, pp.mo, pp.d, Math.floor(hrs), Math.round((hrs % 1) * 60), loc.tz);
+      t = civilToInstant(hrs, civilDay(d.dayStart + 12 * HOURMS, loc.tz));
     }
     return { instant: t, title: fmtDate(d.dayStart + 12 * HOURMS, loc.tz),
       rows: [["Sunrise", fmtClock(d.rise, loc.tz)], ["Sunset", fmtClock(d.set, loc.tz)],
