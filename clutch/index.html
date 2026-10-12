@@ -83,7 +83,7 @@ const D2R=Math.PI/180, MPH=2.23694;
 /* ---------------- drivetrain ---------------- */
 const PHYS=(()=>{
   const g=9.81, RPM=30/Math.PI;
-  const C={m:1300,r:0.30,fd:4.06,Je:0.17,idle:820,stall:380,limiter:6900,clutchMax:330,
+  const C={m:1300,r:0.30,fd:4.06,Je:0.17,idle:820,stall:380,limiter:6900,clutchMax:330,matchW:25,
     crr:0.012,cdA:0.66,rho:1.2,brakeMax:10500,
     ratios:{N:0,'1':3.58,'2':2.02,'3':1.35,'4':1.03,'5':0.81,R:-3.42}};
   // full-throttle torque curve, N·m
@@ -201,7 +201,7 @@ const PHYS=(()=>{
     if(gear==='N'){s.gear='N';s.locked=false;return 'ok';}
     if((gear==='R'&&s.v>0.5)||(gear!=='R'&&s.v<-0.5))return 'grind';
     const G=ratio(gear), e=engage(s.clutch), wc=s.v/C.r*G;
-    if(e>0.03&&Math.abs(s.we-wc)>25)return 'grind';
+    if(e>0.03&&Math.abs(s.we-wc)>C.matchW)return 'grind';
     s.gear=gear;
     s.locked=e>0.03;
     if(s.locked){const Jv=C.m*C.r*C.r/(G*G);const w=(C.Je*s.we+Jv*wc)/(C.Je+Jv);s.we=w;s.v=w*C.r/G;}
@@ -934,6 +934,21 @@ function drawMech(dt){
     ctx.fillText(i,tx+Math.cos(a)*tr*.66,ty+Math.sin(a)*tr*.66);}
   ctx.font=`${Math.max(7,u*1.7)}px ui-sans-serif,system-ui,sans-serif`;ctx.fillStyle='#5d6570';ctx.fillText('RPM',tx,ty+tr*.42);
   const needle=(r,len,col,w)=>{const a=ang(Math.abs(r));ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(tx+Math.cos(a)*tr*len,ty+Math.sin(a)*tr*len);ctx.strokeStyle=col;ctx.lineWidth=w*u;ctx.lineCap='round';ctx.stroke();};
+  // in neutral: ghost needles for the gears in the shifter's column — where the engine must be to slot in without the clutch
+  if(s.gear==='N'){
+    const tw=C.matchW*RPM;
+    for(const r of [-1,1]){
+      const g=gearAt(SH.col,r);if(!g||(g==='R'&&s.v>0.5)||(g!=='R'&&s.v<-0.5))continue;
+      const tgt=Math.abs(s.v/C.r*PHYS.ratio(g)*RPM),ok=Math.abs(rpm-tgt)<=tw;
+      ctx.beginPath();ctx.arc(tx,ty,tr*.86,ang(Math.max(0,tgt-tw)),ang(tgt+tw));
+      ctx.strokeStyle=ok?'rgba(114,211,138,.9)':'rgba(82,199,221,.45)';ctx.lineWidth=u*1.4;ctx.lineCap='butt';ctx.stroke();
+      const a=ang(tgt);ctx.setLineDash([u*.9,u*.7]);
+      ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(tx+Math.cos(a)*tr*.66,ty+Math.sin(a)*tr*.66);
+      ctx.strokeStyle=ok?'rgba(114,211,138,.8)':'rgba(82,199,221,.5)';ctx.lineWidth=u*.5;ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle=ok?'#72d38a':'#52c7dd';ctx.font=`600 ${Math.max(7,u*1.9)}px ui-sans-serif,system-ui,sans-serif`;ctx.textBaseline='middle';
+      ctx.fillText(g,tx+Math.cos(a)*tr*1.12,ty+Math.sin(a)*tr*1.12);
+    }
+  }
   needle(s.wd*RPM,.72,'#52c7dd',.7);
   needle(rpm,.86,'#f0a03c',.9);
   ctx.beginPath();ctx.arc(tx,ty,u*1.1,0,7);ctx.fillStyle='#d9dde3';ctx.fill();
