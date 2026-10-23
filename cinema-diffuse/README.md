@@ -40,7 +40,23 @@ Modes (`--mode`):
   through the video, going out on one side and coming back on the other. Here `--radius`
   sets how far the loop bulges sideways, and `0` goes straight there and back.
 
-Other knobs: `--model sd15` (one 77x768 embedding instead of SDXL's two),
+### Batch mode
+
+Startup takes about 15–20 s, mostly importing diffusers and loading 7 GB of weights onto the GPU.
+To render several runs and pay that cost only once, put one run's arguments on each line of a
+text file (`#` starts a comment) and pass the file to `--batch`:
+
+```bash
+.venv/Scripts/python nudge.py --batch runs.example.txt --frames 300
+```
+
+Any other arguments on the command line become defaults for every line, and a line can
+override them. If a line has a bad flag or fails validation, the script skips it and keeps
+going, and prints a summary at the end.
+
+### Other knobs
+
+`--model sd15` (one 77x768 embedding instead of SDXL's two),
 `--no-pooled` (SDXL only: nudge only the per-token embedding and leave the pooled one alone),
 `--seed`, `--steps`, `--guidance`, `--size` and `--fps`.
 

@@ -1,0 +1,7 @@
+# One run per line, with the same arguments as the command line. Run it with:
+#   .venv/Scripts/python nudge.py --batch runs.example.txt
+# Arguments after --batch on the command line act as defaults for every line.
+
+"a lighthouse on a cliff at dusk" --mode loop --radius 0.5 --frames 600
+"a lighthouse on a cliff at dusk" --mode loop --target "a jellyfish glowing in the deep ocean" --radius 0.3 --frames 600
+"a city street in the rain at night" --mode direction --step 0.003 --seed 7

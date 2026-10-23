@@ -13,14 +13,22 @@ Examples:
     python nudge.py "a lighthouse" --mode walk --step 0.01
     python nudge.py "a lighthouse" --mode loop --radius 0.5 --frames 600
     python nudge.py "a lighthouse" --mode loop --target "a jellyfish" --radius 0.3 --frames 600
+
+Batch mode loads the model once and renders several runs. Each non-blank line of the
+file holds the arguments for one run (# starts a comment). Any other arguments on the
+command line act as defaults for every line, and a line can override them:
+    python nudge.py --batch runs.txt --frames 300
 """
 
 import argparse
 import json
 import math
 import re
+import shlex
 import subprocess
+import sys
 import time
+import traceback
 from pathlib import Path
 
 import torch
@@ -37,9 +45,10 @@ MODELS = {
 }
 
 
-def parse_args():
+def build_parser():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("prompt")
+    p.add_argument("prompt", nargs="?")
+    p.add_argument("--batch", type=Path, help="file with one run's arguments per line; loads the model once")
     p.add_argument("--model", choices=MODELS, default="sdxl-turbo")
     p.add_argument("--mode", choices=["scale", "direction", "walk", "toward", "loop"], default="scale",
                    help="scale: e *= factor each frame. direction: drift along one fixed random direction. "
@@ -64,15 +73,23 @@ def parse_args():
     p.add_argument("--out", type=Path, default=Path(__file__).parent / "out")
     p.add_argument("--name", help="run folder name (default: derived from prompt and mode)")
     p.add_argument("--no-video", action="store_true")
-    return p.parse_args()
+    return p
+
+
+_pipe_cache = {}
 
 
 def load_pipe(model):
-    pipe = AutoPipelineForText2Image.from_pretrained(
-        MODELS[model]["repo"], torch_dtype=torch.float16, variant="fp16"
-    ).to("cuda")
-    pipe.set_progress_bar_config(disable=True)
-    return pipe
+    # Keep one model resident; batch runs that reuse it skip the ~15s load entirely.
+    if model not in _pipe_cache:
+        _pipe_cache.clear()
+        torch.cuda.empty_cache()
+        pipe = AutoPipelineForText2Image.from_pretrained(
+            MODELS[model]["repo"], torch_dtype=torch.float16, variant="fp16"
+        ).to("cuda")
+        pipe.set_progress_bar_config(disable=True)
+        _pipe_cache[model] = pipe
+    return _pipe_cache[model]
 
 
 @torch.no_grad()
@@ -150,8 +167,9 @@ def nudged(base, pooled, args, target=None, target_pooled=None):
         yield e.half(), (p.half() if p is not None else None)
 
 
-def main():
-    args = parse_args()
+def run(args):
+    if not args.prompt:
+        raise SystemExit("a prompt is required")
     if args.mode == "toward" and not args.target:
         raise SystemExit("--mode toward needs --target")
     cfg = MODELS[args.model]
@@ -206,6 +224,37 @@ def main():
                         "-i", str(frames_dir / "frame_%05d.png"),
                         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "16", str(video)], check=True)
         print(f"wrote {video}")
+
+
+def run_batch(parser, batch_file, defaults):
+    lines = [(n, line.strip()) for n, line in enumerate(batch_file.read_text().splitlines(), 1)]
+    runs = [(n, line) for n, line in lines if line and not line.startswith("#")]
+    failed = []
+    for k, (n, line) in enumerate(runs, 1):
+        print(f"\n=== run {k}/{len(runs)} (line {n}): {line}")
+        try:
+            run(parser.parse_args(defaults + shlex.split(line)))
+        except SystemExit as e:  # argparse errors and our own validation
+            if e.code not in (None, 0):
+                print(f"skipping line {n}: {e.code}" if isinstance(e.code, str) else f"skipping line {n}")
+                failed.append(n)
+        except Exception:
+            traceback.print_exc()
+            failed.append(n)
+    print(f"\nbatch done: {len(runs) - len(failed)}/{len(runs)} runs succeeded"
+          + (f"; failed lines: {failed}" if failed else ""))
+
+
+def main():
+    parser = build_parser()
+    args = parser.parse_args()
+    if not args.batch:
+        return run(args)
+    # Everything except --batch itself becomes the defaults for each line.
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--batch")
+    _, defaults = pre.parse_known_args()
+    run_batch(parser, args.batch, defaults)
 
 
 if __name__ == "__main__":
