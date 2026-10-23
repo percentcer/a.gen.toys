@@ -58,6 +58,7 @@ button{font:inherit;color:inherit}
   <header id="bar">
     <div id="scen"></div>
     <div id="faults"></div>
+    <button class="sb on" id="sync" title="S">Synchro</button>
     <button class="ib" id="restart" title="R">↻</button>
     <button class="ib" id="mute" title="M">♪</button>
   </header>
@@ -83,11 +84,13 @@ const D2R=Math.PI/180, MPH=2.23694;
 /* ---------------- drivetrain ---------------- */
 const PHYS=(()=>{
   const g=9.81, RPM=30/Math.PI;
-  const C={m:1300,r:0.30,fd:4.06,Je:0.17,idle:820,stall:380,limiter:6900,clutchMax:330,matchW:25,
-    crr:0.012,cdA:0.66,rho:1.2,brakeMax:10500,
-    ratios:{N:0,'1':3.58,'2':2.02,'3':1.35,'4':1.03,'5':0.81,R:-3.42}};
-  // full-throttle torque curve, N·m
-  const TQ=[[0,70],[600,100],[1000,118],[1500,128],[2000,136],[3000,146],[4000,150],[5000,146],[6000,134],[6800,116],[7600,0]];
+  // 2008–12 US Honda Accord 2.4 (K24Z2 engine, 88E5 five-speed). Gear and final-drive ratios are Honda's;
+  // mass, tire (215/60R16) and drag are approximate; reverse is a typical value, not the 88E5's.
+  const C={m:1465,r:0.332,fd:4.389,Je:0.19,idle:750,stall:380,limiter:6900,clutchMax:420,matchW:25,
+    crr:0.012,cdA:0.70,rho:1.2,brakeMax:13000,syncRate:900,synchro:true,
+    ratios:{N:0,'1':3.267,'2':1.778,'3':1.154,'4':0.870,'5':0.647,R:-3.4}};
+  // gross full-throttle torque, N·m — net of friction this peaks at 218 N·m @ 4300 and gives 177 hp @ 6500
+  const TQ=[[0,95],[600,140],[1000,170],[1500,185],[2000,196],[3000,212],[4300,239],[5000,237],[6000,229],[6500,222],[7000,200],[7600,0]];
   function wot(rpm){rpm=Math.abs(rpm);for(let i=1;i<TQ.length;i++){if(rpm<=TQ[i][0]){const a=TQ[i-1],b=TQ[i];return a[1]+(b[1]-a[1])*(rpm-a[0])/(b[0]-a[0]);}}return 0;}
   const fric=rpm=>7+0.0032*Math.abs(rpm);
   // pedal travel → clamp load. 0 = foot off, 1 = floored.
@@ -97,7 +100,7 @@ const PHYS=(()=>{
 
   function create(o){
     const s={we:C.idle/RPM,v:0,running:true,crank:0,wait:0,gear:'N',clutch:0,gas:0,brake:0,locked:false,
-      wd:C.idle/RPM,iI:0.09,heat:0,Fd:0,FdAvg:0,Tcl:0,Te:0,thr:0,aF:0,aFp:0,jF:0,events:[]};
+      wd:C.idle/RPM,sync:null,iI:0.09,heat:0,Fd:0,FdAvg:0,Tcl:0,Te:0,thr:0,aF:0,aFp:0,jF:0,events:[]};
     Object.assign(s,o||{});
     if(s.gear!=='N'&&s.v){const G=ratio(s.gear);s.we=s.v/C.r*G;s.wd=s.we;s.locked=true;}
     return s;
@@ -143,8 +146,14 @@ const PHYS=(()=>{
       s.we=freeEng(s,Te,dt);
       s.v=veh(s.v,0,Fr,Fa,dt);
       if(G!==0)s.wd=s.v/C.r*G;
+      else if(s.sync){
+        // a synchro cone is dragging the gearbox input up or down to the selected gear's speed
+        const wt=s.v/C.r*ratio(s.sync);
+        if(cap>0){if(Math.abs(s.we-wt)<=C.matchW){engageNow(s,s.sync);s.events.push('engaged');}else{s.sync=null;s.events.push('grind');}}
+        else{const d=wt-s.wd,m=C.syncRate*dt;s.wd=Math.abs(d)<=m?wt:s.wd+Math.sign(d)*m;if(Math.abs(wt-s.wd)<1){engageNow(s,s.sync);s.events.push('engaged');}}
+      }
       else if(cap>0)s.wd=s.we;
-      else s.wd*=Math.max(0,1-dt*0.35);
+      else s.wd*=Math.max(0,1-dt*0.6);
     }else{
       const Jv=C.m*C.r*C.r/(G*G);
       let slip=!s.locked;
@@ -197,15 +206,22 @@ const PHYS=(()=>{
       if(!s.running&&s.crank<=0&&rpm>650){s.running=true;s.iI=0.1;s.events.push('start');} // bump start
     }
   }
-  function tryShift(s,gear){
-    if(gear==='N'){s.gear='N';s.locked=false;return 'ok';}
-    if((gear==='R'&&s.v>0.5)||(gear!=='R'&&s.v<-0.5))return 'grind';
-    const G=ratio(gear), e=engage(s.clutch), wc=s.v/C.r*G;
-    if(e>0.03&&Math.abs(s.we-wc)>C.matchW)return 'grind';
-    s.gear=gear;
-    s.locked=e>0.03;
+  function engageNow(s,gear){
+    const G=ratio(gear),wc=s.v/C.r*G;
+    s.gear=gear;s.sync=null;s.locked=engage(s.clutch)>0.03;s.wd=wc;
     if(s.locked){const Jv=C.m*C.r*C.r/(G*G);const w=(C.Je*s.we+Jv*wc)/(C.Je+Jv);s.we=w;s.v=w*C.r/G;}
-    return 'ok';
+  }
+  // 'ok' | 'grind' | 'sync' (synchro is matching speeds; the gear goes in a moment later)
+  function tryShift(s,gear){
+    if(gear==='N'){s.gear='N';s.sync=null;s.locked=false;return 'ok';}
+    if(s.gear!=='N'){s.gear='N';s.locked=false;}   // every shift passes through neutral
+    if((gear==='R'&&s.v>0.5)||(gear!=='R'&&s.v<-0.5))return 'grind';
+    const wc=s.v/C.r*ratio(gear);
+    // the dog teeth only mesh if the gearbox input is already turning at the gear's speed
+    const win=engage(s.clutch)>0.03?s.we:s.wd;
+    if(Math.abs(win-wc)<=C.matchW){engageNow(s,gear);return 'ok';}
+    if(engage(s.clutch)>0.03||!C.synchro)return 'grind';
+    s.sync=gear;return 'sync';
   }
   // drivetrain jerk, m/s³, low-passed — the "lurch" detector
   function comfort(s,dt){
@@ -263,7 +279,7 @@ const RAIL=(()=>{
 
 /* ---------------- scenario progress ---------------- */
 const RUN=(()=>{
-  const JT=16, JCD=1.1;
+  const JT=18, JCD=1.1;
   function prepare(scn){
     if(scn.nom)return;
     scn.nom=[];let pose=Object.assign({},scn.start.pose);
@@ -578,7 +594,7 @@ for(const k of ['mech','road','ped','gear']){const el=$('cv-'+k);CV[k]={el,ctx:e
 
 let scnIdx=0, scn=null, run=null, s=null, world=[], traffic=[];
 const cam={x:0,y:0,zoom:1};
-const vis={eng:0,disc:0,cnt:0,out:0,wheel:0,shake:0};
+const vis={eng:0,disc:0,out:0,wheel:0,st:0,stx:0,shake:0};
 const flash={word:'',t:0,col:'#fff'};
 let best={};
 try{best=JSON.parse(localStorage.getItem('clutch.v1')||'{}')||{};}catch(e){best={};}
@@ -616,7 +632,7 @@ function load(i){
   const q=RUN.pose(run);cam.x=q.x;cam.y=q.y;cam.zoom=1/(1+Math.abs(s.v)/16);
   SH.col=0;SH.row=0;
   if(s.gear!=='N'){const sl=SLOT[s.gear];SH.col=sl[0];SH.row=sl[1];}
-  SH.kx=SH.col;SH.ky=SH.row;SH.drag=null;SH.shake=0;
+  SH.kx=SH.col;SH.ky=SH.row;SH.drag=null;SH.shake=0;SH.pend=null;SH.auto=null;
   flash.t=0;
   $('over').classList.remove('show');
   renderBar();renderFaults();
@@ -721,27 +737,41 @@ for(const ev of ['pointerup','pointercancel','lostpointercapture'])CV.ped.el.add
 /* ---------------- shifter input ---------------- */
 const SLOT={'1':[-1,-1],'2':[-1,1],'3':[0,-1],'4':[0,1],'5':[1,-1],'R':[1,1]};
 const gearAt=(c,r)=>Object.keys(SLOT).find(k=>SLOT[k][0]===c&&SLOT[k][1]===r);
-const SH={col:0,row:0,kx:0,ky:0,drag:null,shake:0,blocked:false,lastGrind:-9,lay:null};
+const SH={col:0,row:0,kx:0,ky:0,drag:null,shake:0,blocked:false,lastGrind:-9,lay:null,pend:null,auto:null,held:new Set()};
 function grind(){
   SH.shake=.4;grindSound();
   if(run.t-SH.lastGrind>.5)RUN.fault(run,'Grind');
   SH.lastGrind=run.t;
 }
 function engage(col,row){
-  const g=gearAt(col,row);
-  if(PHYS.tryShift(s,g)==='ok'){SH.col=col;SH.row=row;return true;}
-  grind();return false;
+  const r=PHYS.tryShift(s,gearAt(col,row));
+  SH.col=col;SH.row=r==='ok'?row:0;SH.pend=r==='sync'?{col,row}:null;
+  if(r==='grind'){grind();return false;}
+  return true;
 }
-function neutral(){PHYS.tryShift(s,'N');SH.row=0;}
+function neutral(){PHYS.tryShift(s,'N');SH.row=0;SH.pend=null;}
 function shiftKey(dir){
-  if(dir==='up'){if(SH.row===1)neutral();else if(SH.row===0)engage(SH.col,-1);}
-  else if(dir==='down'){if(SH.row===-1)neutral();else if(SH.row===0)engage(SH.col,1);}
+  // while a synchro is working the knob is held part-way; pushing back the other way cancels
+  if(SH.pend){if((dir==='up')===(SH.pend.row>0))neutral();return;}
+  if(dir==='up'){if(SH.row===1){neutral();SH.auto={dir,t:.22,col:SH.col,row:-1};}else if(SH.row===0)engage(SH.col,-1);}
+  else if(dir==='down'){if(SH.row===-1){neutral();SH.auto={dir,t:.22,col:SH.col,row:1};}else if(SH.row===0)engage(SH.col,1);}
   else if(SH.row===0)SH.col=clamp(SH.col+(dir==='left'?-1:1),-1,1);
+}
+function updateShifter(dt){
+  if(SH.pend&&s.gear!=='N'){SH.row=SH.pend.row;SH.pend=null;}
+  else if(SH.pend&&!s.sync)SH.pend=null;
+  // holding ↑/↓ carries on through neutral into the opposite gear of the same column
+  if(SH.auto){
+    const a=SH.auto;
+    if(!SH.held.has(a.dir==='up'?'ArrowUp':'ArrowDown'))SH.auto=null;
+    else if((a.t-=dt)<=0){SH.auto=null;if(SH.row===0&&!SH.pend&&SH.col===a.col)engage(a.col,a.row);}
+  }
 }
 function gatePt(e){const L=SH.lay,r=CV.gear.el.getBoundingClientRect();return [(e.clientX-r.left-L.cx)/L.sx,(e.clientY-r.top-L.cy)/L.sy];}
 function dragTo(gx,gy){
   gx=clamp(gx,-1.1,1.1);gy=clamp(gy,-1,1);
   if(SH.blocked){SH.ky=clamp(gy,-.42,.42);SH.kx=SH.col;if(Math.abs(gy)<.25)SH.blocked=false;return;}
+  if(SH.pend){SH.kx=SH.col;SH.ky=SH.pend.row<0?clamp(gy,-.55,0):clamp(gy,0,.55);if(Math.abs(gy)<.3)neutral();return;}
   if(Math.abs(SH.ky)>.08){SH.kx=SH.col;SH.ky=gy;}
   else{
     const nc=clamp(Math.round(gx),-1,1);
@@ -749,7 +779,7 @@ function dragTo(gx,gy){
     else{SH.kx=clamp(gx,-1,1);SH.ky=0;SH.col=nc;}
   }
   const want=SH.ky<-.6?-1:SH.ky>.6?1:0;
-  if(SH.row===0&&want!==0){if(!engage(SH.col,want)){SH.ky=want*.42;SH.blocked=true;}}
+  if(SH.row===0&&want!==0){if(!engage(SH.col,want)){SH.ky=want*.42;SH.blocked=true;}else if(SH.pend)SH.ky=want*.55;}
   else if(SH.row!==0&&Math.abs(SH.ky)<.4)neutral();
 }
 CV.gear.el.addEventListener('pointerdown',e=>{
@@ -772,15 +802,24 @@ addEventListener('keydown',e=>{
   if(e.ctrlKey||e.metaKey||e.altKey)return;
   audioInit();
   if(KMAP[e.code]){PED.keys[KMAP[e.code]]=true;e.preventDefault();return;}
+  if(e.code.startsWith('Arrow'))SH.held.add(e.code);
   if(e.repeat)return;
   const a={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right'}[e.code];
   if(a){shiftKey(a);e.preventDefault();return;}
   if(e.code==='KeyR'){load(scnIdx);return;}
   if(e.code==='KeyM'){setMute(!AU.on);return;}
+  if(e.code==='KeyS'){setSync(!C.synchro);return;}
   const n=/^Digit([1-9])$/.exec(e.code);if(n&&+n[1]<=SCN.length)load(+n[1]-1);
 });
-addEventListener('keyup',e=>{if(KMAP[e.code])PED.keys[KMAP[e.code]]=false;});
-addEventListener('blur',()=>{for(const k of PEDALS)PED.keys[k]=false;PED.ptr.clear();});
+addEventListener('keyup',e=>{if(KMAP[e.code])PED.keys[KMAP[e.code]]=false;SH.held.delete(e.code);});
+addEventListener('blur',()=>{for(const k of PEDALS)PED.keys[k]=false;PED.ptr.clear();SH.held.clear();});
+function setSync(on){
+  C.synchro=on;$('sync').classList.toggle('on',on);
+  if(!on&&SH.pend)neutral();
+  try{localStorage.setItem('clutch.sync',on?'1':'0');}catch(e){}
+}
+$('sync').onclick=e=>{e.currentTarget.blur();setSync(!C.synchro);};
+try{if(localStorage.getItem('clutch.sync')==='0')setSync(false);}catch(e){}
 
 /* ---------------- resize ---------------- */
 function resize(){
@@ -797,11 +836,11 @@ const MW='#9a8977',MW2='#7a6b5c',MC='#6f8ea0',MC2='#557384',MS='#4a5059',MO='#7f
 function drawMech(dt){
   const {ctx,w:W,h:H}=CV.mech;
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
-  const u=Math.min(W/124,H/86),ox=(W-124*u)/2,oy=(H-86*u)/2+47*u;
+  const u=Math.min(W/124,H/88),ox=(W-124*u)/2,oy=(H-88*u)/2+47*u;
   const X=x=>ox+x*u,Y=r=>oy-r*u;
   const c=s.clutch,e=PHYS.engage(c);
   const G=PHYS.ratio(s.gear);
-  vis.eng+=visRate(s.we)*dt;vis.disc+=visRate(s.wd)*dt;vis.cnt+=visRate(s.wd/1.571)*dt;
+  vis.eng+=visRate(s.we)*dt;vis.disc+=visRate(s.wd)*dt;
   vis.out+=visRate(s.v/C.r*C.fd)*dt;vis.wheel+=visRate(s.v/C.r)*dt;
   const rpm=s.we*RPM;
   const lug=s.running&&s.locked&&G!==0&&rpm<1000?(1000-rpm)/600:0;
@@ -815,6 +854,11 @@ function drawMech(dt){
     for(let k=0;k<n;k++){const th=ph+k*Math.PI*2/n,sn=Math.sin(th);if(sn<=0)continue;
       const y=R*Math.cos(th);if(Math.abs(y)<rmin)continue;
       ctx.globalAlpha=.25+.75*sn;ctx.fillStyle=k===0?'#fff':col;ctx.fillRect(X(x0),Y(y)-u*.35,(x1-x0)*u,u*.7);}
+    ctx.globalAlpha=1;
+  };
+  const marksAt=(x0,x1,cy,R,ph,n,col)=>{
+    for(let k=0;k<n;k++){const th=ph+k*Math.PI*2/n,sn=Math.sin(th);if(sn<=0)continue;
+      ctx.globalAlpha=.25+.75*sn;ctx.fillStyle=k===0?'#fff':col;ctx.fillRect(X(x0),Y(cy+R*Math.cos(th))-u*.3,(x1-x0)*u,u*.6);}
     ctx.globalAlpha=1;
   };
   const line=(pts,col,w)=>{ctx.beginPath();pts.forEach(([x,r],i)=>i?ctx.lineTo(X(x),Y(r)):ctx.moveTo(X(x),Y(r)));ctx.strokeStyle=col;ctx.lineWidth=w*u;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();};
@@ -841,10 +885,19 @@ function drawMech(dt){
   if(heat>.02){ctx.fillStyle=`rgba(255,${120-heat*60|0},40,${heat*.85})`;ctx.fillRect(X(23.2),Y(27),u*.8,u*54);}
   ctx.restore();
 
+  // starter motor: its pinion slides into the flywheel's ring gear while cranking
+  vis.stx+=((s.crank>0?1:0)-vis.stx)*Math.min(1,dt*14);if(s.crank>0)vis.st+=dt*30;
+  rect(2,13,-38,-33.2,'#363c45','#59616c');
+  for(let i=0;i<4;i++)rect(3+i*2.6,4+i*2.6,-37.6,-33.6,'#2e333a');
+  const spx=14.3+vis.stx*3.4;
+  rect(13,spx,-35.2,-34,'#7a828d');
+  rect(spx,spx+2.2,-34.3,-30.9,s.crank>0?'#e2b25a':'#8b8f96');
+  marksAt(spx,spx+2.2,-32.6,1.7,vis.st,4,'#fff');
+
   // input shaft (transmission side)
   const dl=24+lift*.45;
-  rect(dl+.3,64,-2.4,2.4,MC2,shade(MC2,-.3));
-  marks(dl+.3,64,2.4,vis.disc,3,'#bfe3ef');
+  rect(dl+.3,97,-2.4,2.4,MC2,shade(MC2,-.3));
+  marks(dl+.3,97,2.4,vis.disc,3,'#bfe3ef');
   // guide sleeve (stationary)
   both(37,52,2.9,4.1,MS);
   // friction disc
@@ -888,41 +941,50 @@ function drawMech(dt){
   const hyd=`rgba(${80+pres*150|0},${150-pres*40|0},${200-pres*120|0},.9)`;
   line([[body0+8,E[1]],[body0+10,E[1]],[body0+10,-60]],hyd,.6);
 
-  // gearbox
-  rect(62,100,-30.8,15,'rgba(90,98,110,.12)','rgba(140,150,165,.3)');
-  const CM=1.571,D=18,mr=k=>{const cc=D/(1+k);return [D-cc,cc];};
-  const gears=[['4',70.5],['3',75.5],['2',80.5],['1',85.5],['R',90.5],['5',95.5]];
-  // countershaft
-  rect(64,98,-D-1.6,-D+1.6,MC2);
-  marks(64,98,1.6,vis.cnt,2,'#bfe3ef');
-  rect(66,100,-2,2,MO,shade(MO,-.3));
-  marks(66,100,2,vis.out,3,'#d6ecc6');
-  // input constant-mesh pair
-  const gearRect=(x,r0,r1,ph,col,teeth,hl)=>{rect(x-1.6,x+1.6,r0,r1,col,hl?'#e8f6ff':shade(col,-.35));
-    for(let k=0;k<teeth;k++){const th=ph+k*Math.PI*2/teeth,sn=Math.sin(th);if(sn<=0)continue;const y=(r0+r1)/2+(r1-r0)/2*Math.cos(th);
-      ctx.globalAlpha=.25+.6*sn;ctx.fillStyle='#e6eef3';ctx.fillRect(X(x-1.6),Y(y)-u*.2,3.2*u,u*.4);}ctx.globalAlpha=1;};
-  gearRect(65,-D-11,-D+11,-vis.cnt,'#3b4c59',12);
-  gearRect(65,-7,7,vis.disc,MC,10);
-  for(const [g,x] of gears){
-    const k=Math.abs(C.ratios[g])/CM,[m,cc]=mr(k);
-    const on=s.gear===g;
-    const ph=on?vis.out:vis.cnt/k;
-    gearRect(x,-D-cc,-D+cc,-vis.cnt,'#3b4c59',8);
-    gearRect(x,-m,m,ph,on?'#6fd0a0':'#66727d',8,on);
-    if(g==='R'){ctx.beginPath();ctx.arc(X(x+2.4),Y(-D+cc+2.6),u*2.4,0,7);ctx.fillStyle='#4f5d69';ctx.fill();}
+  // gearbox — a two-shaft transaxle like the Accord's: gears fixed to the input shaft drive gears that free-wheel
+  // on the output shaft until a synchro sleeve locks one to it; the output shaft's pinion turns the differential
+  ctx.beginPath();[[62,15],[99.5,15],[99.5,16.5],[108.5,16.5],[108.5,-21],[104,-23],[104,-32.5],[62,-32.5]].forEach(([x,r],i)=>i?ctx.lineTo(X(x),Y(r)):ctx.moveTo(X(x),Y(r)));ctx.closePath();
+  ctx.fillStyle='rgba(90,98,110,.12)';ctx.fill();ctx.strokeStyle='rgba(140,150,165,.3)';ctx.lineWidth=u*.3;ctx.stroke();
+  const D=18,GW=1.4,crash=!C.synchro;
+  const GX={'1':67.5,'2':72.7,'3':77.9,'4':83.1,'5':88.3,'R':94.5};
+  const gear=(x,cy,rad,ph,col,teeth,hl)=>{rect(x-GW,x+GW,cy-rad,cy+rad,col,hl?'#e8f6ff':shade(col,-.35));
+    for(let k=0;k<teeth;k++){const th=ph+k*Math.PI*2/teeth,sn=Math.sin(th);if(sn<=0)continue;
+      ctx.globalAlpha=.25+.6*sn;ctx.fillStyle='#e6eef3';ctx.fillRect(X(x-GW),Y(cy+rad*Math.cos(th))-u*.2,2*GW*u,u*.4);}ctx.globalAlpha=1;};
+  rect(64,103.2,-D-1.8,-D+1.8,MO,shade(MO,-.3));
+  marksAt(64,103.2,-D,1.8,vis.out,3,'#d6ecc6');
+  for(const g in GX){
+    const x=GX[g],k=Math.abs(C.ratios[g]),on=s.gear===g;
+    let m=D/(1+k),c=D-m;
+    if(g==='R'){m=4;c=10.5;}
+    gear(x,0,m,vis.disc,MC,8);
+    gear(x,-D,c,on?vis.out:vis.disc/k*(g==='R'?-1:1),on?'#6fd0a0':'#66727d',10,on);
+    if(g==='R'){ctx.beginPath();ctx.arc(X(x+2.3),Y(-m-1.8),u*2,0,7);ctx.fillStyle='#4f5d69';ctx.fill();}
   }
-  // synchro sleeves
-  for(const [a,b,x] of [['4','3',73],['2','1',83],['R','5',93]]){
-    const off=s.gear===a?-1.2:s.gear===b?1.2:0;
-    both(x+off-1,x+off+1,2,4.6,off?'#e2b25a':'#8b8f96');
+  // synchro hubs: sleeve slides toward a gear; in synchro mode a brass cone grabs it first and matches speeds
+  for(const [a,b] of [['1','2'],['3','4'],['5','R']]){
+    const xs=(GX[a]+GX[b])/2,half=(GX[b]-GX[a])/2-GW;
+    const side=s.gear===a||s.sync===a?-1:s.gear===b||s.sync===b?1:0;
+    const engaged=s.gear===a||s.gear===b;
+    const off=side*(engaged?half-.45:(half-.45)*.45);
+    if(!crash)for(const sd of [-1,1]){
+      const hot=s.sync&&side===sd;
+      rect(xs+sd*(half-.35)-.22,xs+sd*(half-.35)+.22,-D-3.9,-D+3.9,hot?'#f0a03c':'#8a7a55');
+    }
+    rect(xs+off-.45,xs+off+.45,-D-4.6,-D+4.6,side?'#e2b25a':'#8b8f96',shade('#8b8f96',-.35));
   }
-  // wheel
-  const wx=112,wr=8;
-  ctx.beginPath();ctx.arc(X(wx),Y(0),wr*u,0,7);ctx.fillStyle='#1b1d21';ctx.fill();
-  ctx.beginPath();ctx.arc(X(wx),Y(0),wr*.62*u,0,7);ctx.fillStyle='#565d66';ctx.fill();
+  // final drive: output-shaft pinion → ring gear on the differential (4.389 : 1)
+  const pr=3.3,rr2=pr*C.fd,dcy=-D+pr+rr2;
+  gear(101.5,-D,pr,vis.out,MO,5);
+  gear(101.5,dcy,rr2,vis.wheel,'#76866a',18);
+  rect(103.4,107.2,dcy-4,dcy+4,'#56624e','#738069');
+  for(const sd of [-1,1]){ctx.beginPath();ctx.arc(X(105.3),Y(dcy+sd*2),u*1.2,0,7);ctx.fillStyle='#8a9a7c';ctx.fill();}
+  // axle + wheel
+  const wx=114,wr=7;
+  rect(107.2,wx,dcy-1.1,dcy+1.1,MO);
+  ctx.beginPath();ctx.arc(X(wx),Y(dcy),wr*u,0,7);ctx.fillStyle='#1b1d21';ctx.fill();
+  ctx.beginPath();ctx.arc(X(wx),Y(dcy),wr*.62*u,0,7);ctx.fillStyle='#565d66';ctx.fill();
   ctx.strokeStyle='#9aa3ad';ctx.lineWidth=u*.8;
-  for(let k=0;k<5;k++){const a=-vis.wheel+k*Math.PI*2/5;ctx.beginPath();ctx.moveTo(X(wx),Y(0));ctx.lineTo(X(wx)+Math.cos(a)*wr*.58*u,Y(0)+Math.sin(a)*wr*.58*u);ctx.stroke();}
-  rect(100,wx-wr*.6,-1.2,1.2,MO);
+  for(let k=0;k<5;k++){const a=-vis.wheel+k*Math.PI*2/5;ctx.beginPath();ctx.moveTo(X(wx),Y(dcy));ctx.lineTo(X(wx)+Math.cos(a)*wr*.58*u,Y(dcy)+Math.sin(a)*wr*.58*u);ctx.stroke();}
 
   // tachometer: engine needle vs. gearbox input needle
   const tx=X(81),ty=Y(30),tr=12*u,a0=Math.PI*.75,span=Math.PI*1.5,ang=r=>a0+span*clamp(r/8000,0,1);
@@ -939,7 +1001,7 @@ function drawMech(dt){
     const tw=C.matchW*RPM;
     for(const r of [-1,1]){
       const g=gearAt(SH.col,r);if(!g||(g==='R'&&s.v>0.5)||(g!=='R'&&s.v<-0.5))continue;
-      const tgt=Math.abs(s.v/C.r*PHYS.ratio(g)*RPM),ok=Math.abs(rpm-tgt)<=tw;
+      const tgt=Math.abs(s.v/C.r*PHYS.ratio(g)*RPM),ref=PHYS.engage(s.clutch)>0.03?rpm:Math.abs(s.wd*RPM),ok=Math.abs(ref-tgt)<=tw;
       ctx.beginPath();ctx.arc(tx,ty,tr*.86,ang(Math.max(0,tgt-tw)),ang(tgt+tw));
       ctx.strokeStyle=ok?'rgba(114,211,138,.9)':'rgba(82,199,221,.45)';ctx.lineWidth=u*1.4;ctx.lineCap='butt';ctx.stroke();
       const a=ang(tgt);ctx.setLineDash([u*.9,u*.7]);
@@ -967,8 +1029,11 @@ function drawMech(dt){
   lab('Spring',44,43.5,38.6,15);
   lab('Bearing',51,36.5,tip+2,9.8);
   lab('Fork',46,-34,E[0]-1,E[1]+1);
-  lab('Gearbox',81,-36,81,-31.8);
-  lab('Engine',6.5,-35,6.5,-30.4);
+  lab("Gearbox",95,-36.5,95,-32.8);
+  lab('Diff',106,22,103,15);
+  lab(crash?"Dogs":"Synchro",80.5,-39,80.5,-22.6);
+  lab('Starter',7.5,-40.6,7.5,-38.3);
+  lab('Engine',6.5,34,6.5,30.4);
 }
 
 /* =====================================================================
@@ -1227,7 +1292,7 @@ function drawShifter(dt){
   const sx=Math.min(W*.2,m*.42),sy=Math.min(H*.27,m*.3),kr=Math.max(14,Math.min(sx,sy)*.34);
   SH.lay={cx,cy,sx,sy,kr};
   // animate knob
-  if(!SH.drag){const k=Math.min(1,dt*18);SH.kx+=(SH.col-SH.kx)*k;SH.ky+=(SH.row-SH.ky)*k;}
+  if(!SH.drag){const k=Math.min(1,dt*18),ty=SH.pend?SH.pend.row*.55:SH.row;SH.kx+=(SH.col-SH.kx)*k;SH.ky+=(ty-SH.ky)*k;}
   SH.shake=Math.max(0,SH.shake-dt);
   // plate
   ctx.fillStyle='#24282e';ctx.beginPath();ctx.roundRect(cx-sx*1.62,cy-sy*1.72,sx*3.24,sy*3.44,16);ctx.fill();
@@ -1276,6 +1341,7 @@ let last=performance.now();
 function frame(t){
   const dt=clamp((t-last)/1000,0,.05);last=t;
   updatePedals(dt);
+  updateShifter(dt);
   const n=Math.max(1,Math.ceil(dt/.002)),h=dt/n;let fd=0;
   for(let i=0;i<n;i++){PHYS.step(s,h);RUN.step(run,s,h);fd+=s.Fd;}
   s.FdAvg=fd/n;
@@ -1283,6 +1349,7 @@ function frame(t){
   for(const ev of s.events){
     if(ev==='stall'){RUN.fault(run,'Stall');if(AU.ctx)thud(40,.35);}
     else if(ev==='start'&&AU.ctx)thud(70,.15);
+    else if(ev==='grind'){SH.pend=null;grind();}
   }
   s.events.length=0;
   for(const ev of run.events){
