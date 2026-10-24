@@ -104,6 +104,29 @@ def encode(pipe, prompt, do_cfg):
     return embeds, None, neg, None
 
 
+def fixed_latents(pipe, size, seed):
+    """Starting noise, held fixed so only the embedding varies between frames."""
+    scale = pipe.vae_scale_factor
+    return torch.randn((1, pipe.unet.config.in_channels, size // scale, size // scale),
+                       generator=torch.Generator("cuda").manual_seed(seed),
+                       device="cuda", dtype=torch.float16)
+
+
+@torch.no_grad()
+def render_frame(pipe, e, p, neg, neg_pooled, latents, seed, steps, guidance, size):
+    """Renders one PIL image from (fp16) prompt embeds; p/neg/neg_pooled may be None."""
+    kw = dict(prompt_embeds=e, num_inference_steps=steps, guidance_scale=guidance,
+              width=size, height=size, latents=latents.clone(),
+              generator=torch.Generator("cuda").manual_seed(seed))
+    if p is not None:
+        kw["pooled_prompt_embeds"] = p
+    if guidance > 1.0:
+        kw["negative_prompt_embeds"] = neg
+        if neg_pooled is not None:
+            kw["negative_pooled_prompt_embeds"] = neg_pooled
+    return pipe(**kw).images[0]
+
+
 def nudged(base, pooled, args, target=None, target_pooled=None):
     """Yields (embeds, pooled) for each frame. Math is done in float32 to avoid fp16 drift."""
     e0 = base.float()
@@ -192,28 +215,14 @@ def run(args):
     if args.target and args.mode in ("toward", "loop"):
         target, target_pooled, _, _ = encode(pipe, args.target, do_cfg)
 
-    # Fixed starting noise so only the embedding varies between frames.
-    latent_ch = pipe.unet.config.in_channels
-    scale = pipe.vae_scale_factor
-    latents = torch.randn((1, latent_ch, size // scale, size // scale),
-                          generator=torch.Generator("cuda").manual_seed(args.seed),
-                          device="cuda", dtype=torch.float16)
+    latents = fixed_latents(pipe, size, args.seed)
 
     t0 = time.time()
     for i, (e, p) in enumerate(nudged(embeds, pooled, args, target, target_pooled)):
         path = frames_dir / f"frame_{i:05d}.png"
         if path.exists():  # resume support: frame embeddings are deterministic
             continue
-        kw = dict(prompt_embeds=e, num_inference_steps=steps, guidance_scale=guidance,
-                  width=size, height=size, latents=latents.clone(),
-                  generator=torch.Generator("cuda").manual_seed(args.seed))
-        if p is not None:
-            kw["pooled_prompt_embeds"] = p
-        if do_cfg:
-            kw["negative_prompt_embeds"] = neg
-            if neg_pooled is not None:
-                kw["negative_pooled_prompt_embeds"] = neg_pooled
-        pipe(**kw).images[0].save(path)
+        render_frame(pipe, e, p, neg, neg_pooled, latents, args.seed, steps, guidance, size).save(path)
         if i % 25 == 0 or i == args.frames - 1:
             el = time.time() - t0
             print(f"frame {i + 1}/{args.frames}  |e|={e.float().norm():.1f}  {el:.0f}s elapsed")

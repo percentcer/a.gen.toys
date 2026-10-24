@@ -54,6 +54,33 @@ Any other arguments on the command line become defaults for every line, and a li
 override them. If a line has a bad flag or fails validation, the script skips it and keeps
 going, and prints a summary at the end.
 
+### Interactive explorer
+
+```bash
+.venv/Scripts/python explore.py "a lighthouse on a cliff at dusk" --x "a jellyfish" --y "a forest" --cells 8
+```
+
+This lets you fly through a 3D grid slice of embedding space. Cell `(x, y, z)` renders
+`e0 + x·X + y·Y + z·Z`, with your prompt at the origin.
+- **Random axes:** by default the three axes are random, mutually orthogonal directions, and
+  `--step` sets the cell size as a fraction of `|e0|`.
+- **Prompt axes:** `--x/--y/--z "prompt"` points an axis at another prompt's embedding instead,
+  so `--cells` steps along it lands exactly on that prompt.
+
+The image only depends on your position, so looking around doesn't change the picture.
+- **The side panel:** a chase-cam view of the grid lattice around you. Rendered cells are lit,
+  the origin is gold, and your current cell has a ring around it.
+- **Moving:** each move snaps to the grid axis closest to the direction you're looking or
+  strafing. The panel shows which axis each key maps to right now.
+- **Caching:** every rendered cell is kept in memory, so revisiting a cell is instant. While
+  you're idle, the neighboring cells render in the background.
+
+Controls:
+- W/S: forward and back. A/D: strafe left and right. Q/E: down and up.
+- Hold the right mouse button to look around.
+- Home: return to the origin. P: save the current image.
+- Esc: quit. The flight path is saved to `out/explore/<timestamp>/path.json`.
+
 ### Other knobs
 
 `--model sd15` (one 77x768 embedding instead of SDXL's two),
