@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dad simulator</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍼</text></svg>">
+<style>
+:root{--g:#62d26f;--y:#e8c34a;--r:#ee5d50;--ink:#eef1f4;--dim:#9aa4b0;--pan:rgba(14,17,22,.68);--line:rgba(255,255,255,.1);--acc:#7fd4ff;--warm:#f3b562}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#0c0e11;color:var(--ink);
+  font:13px/1.35 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;user-select:none;-webkit-user-select:none}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+[hidden]{display:none!important}
+#hud{position:fixed;inset:0;pointer-events:none}
+.panel{background:var(--pan);border:1px solid var(--line);border-radius:12px;padding:9px 11px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.panel h3{margin:0 0 5px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);display:flex;justify-content:space-between;font-weight:600}
+.panel h3 b{color:var(--ink);text-transform:none;letter-spacing:0}
+#dadP{position:absolute;left:12px;top:12px;width:216px}
+#kidP{position:absolute;right:12px;top:12px;width:226px}
+#mid{position:absolute;left:50%;top:12px;transform:translateX(-50%);width:400px;max-width:calc(100vw - 490px);min-width:260px}
+.bar{display:grid;grid-template-columns:18px 64px 1fr 20px;align-items:center;gap:5px;height:19px}
+.bar .ic{font-size:12px;text-align:center}
+.bar .lb{color:#cfd5dc;font-size:12px;white-space:nowrap;overflow:hidden}
+.tr{height:9px;border-radius:5px;background:rgba(255,255,255,.11);overflow:hidden;position:relative}
+.tr i{display:block;height:100%;width:50%;background:var(--g);border-radius:5px;transition:width .25s}
+.bar .ar{font-size:9px;font-style:normal;letter-spacing:-2px}
+.bar.crit .lb{color:var(--r);animation:bl .7s infinite alternate}
+@keyframes bl{to{opacity:.35}}
+.sk{display:grid;grid-template-columns:64px 1fr;gap:5px;align-items:center;height:14px;font-size:11px;color:var(--dim);margin-left:23px}
+.sk .tr{height:5px}.sk .tr i{background:var(--acc)}
+.sk .tr:after{content:"";position:absolute;left:83.3%;top:0;bottom:0;width:1px;background:#fff8}
+.sub{font-size:11px;color:var(--dim);margin:6px 0 2px;letter-spacing:.05em;text-transform:uppercase}
+#clock{display:flex;justify-content:space-between;align-items:baseline;font-variant-numeric:tabular-nums}
+#clock b{font-size:17px;font-weight:650}
+#yr{height:4px;background:rgba(255,255,255,.12);border-radius:3px;margin:5px 0 7px;overflow:hidden}
+#yr i{display:block;height:100%;background:var(--warm);width:0}
+#life .bar{grid-template-columns:18px 76px 1fr 20px}
+#money{display:flex;justify-content:space-between;margin-top:5px;font-size:12px;color:#cfd5dc;font-variant-numeric:tabular-nums}
+#money b{color:var(--ink)} #money .neg{color:var(--r)} #money u{text-decoration:none;color:var(--dim)}
+#cross{position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px;border-radius:50%;background:#fffb;box-shadow:0 0 0 1px #0006}
+#prompt{position:absolute;left:50%;bottom:112px;transform:translateX(-50%);text-align:center;font-size:15px;text-shadow:0 1px 3px #000c;white-space:nowrap}
+#prompt kbd,#actB kbd,.k{display:inline-block;min-width:22px;padding:1px 6px;border-radius:5px;background:#fff;color:#111;font:600 12px ui-monospace,Menlo,Consolas,monospace;margin-right:6px;text-shadow:none}
+#prompt .alt{font-size:12px;color:#d5dae0;margin-top:4px}
+#prompt .no{color:var(--dim);font-size:13px}
+#actB{position:absolute;left:50%;bottom:54px;transform:translateX(-50%);padding:8px 16px;font-size:14px;text-align:center;white-space:nowrap}
+#actB small{display:block;color:var(--dim);font-size:11px;margin-top:2px}
+#actB .pg{height:3px;background:#fff2;border-radius:2px;margin-top:6px;overflow:hidden}#actB .pg i{display:block;height:100%;background:var(--acc)}
+#toasts{position:absolute;left:12px;bottom:54px;width:340px;display:flex;flex-direction:column;gap:5px}
+.toast{background:var(--pan);border:1px solid var(--line);border-left:3px solid var(--dim);border-radius:8px;padding:6px 10px;font-size:12.5px;animation:tin .25s;backdrop-filter:blur(6px)}
+.toast.warn{border-left-color:var(--r)}.toast.good{border-left-color:var(--g)}.toast.mile{border-left-color:var(--warm)}.toast.dim{color:var(--dim)}
+.toast.out{opacity:0;transition:opacity .6s}
+@keyframes tin{from{transform:translateX(-12px);opacity:0}}
+#xp{position:absolute;left:12px;bottom:12px;width:340px;padding:6px 10px;font-size:11.5px;color:#cfd5dc}
+#xp .tr{height:5px;margin-top:4px}#xp .tr i{background:var(--warm)}
+#keys{position:absolute;right:12px;bottom:12px;font-size:11px;color:#c8ced6;text-shadow:0 1px 2px #000;text-align:right;line-height:1.7}
+#keys .k{font-size:10px;min-width:0;padding:0 4px;margin:0 2px 0 6px}
+#alert{position:absolute;left:50%;top:150px;transform:translateX(-50%);font-size:14px;padding:5px 14px;border-radius:99px;background:rgba(238,93,80,.88);color:#fff;font-weight:600;animation:bl .6s infinite alternate}
+#lids{position:fixed;inset:0;background:#05060a;opacity:0;pointer-events:none;transition:opacity .5s;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;font-size:22px;color:#c9d2e3}
+#lids small{font-size:13px;color:#7c8798}
+.ov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(6,8,11,.55);backdrop-filter:blur(3px)}
+.card{width:min(620px,92vw);max-height:92vh;overflow:auto;background:rgba(18,21,27,.96);border:1px solid var(--line);border-radius:16px;padding:22px 24px;box-shadow:0 20px 70px #000a;user-select:text}
+.card h2{margin:0 0 3px;font-size:21px}.card .tag{color:var(--warm);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.card p{font-size:14.5px;line-height:1.5;color:#dde2e8;margin:10px 0}
+.ch{display:block;width:100%;text-align:left;margin:7px 0;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink);font:inherit;font-size:14px;cursor:pointer}
+.ch:hover{background:rgba(255,255,255,.11);border-color:#fff4}
+.lit{font-size:12.5px!important;color:#aeb8c4!important;border-left:3px solid var(--acc);padding-left:10px}
+.lit b{color:var(--acc);font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:11px;display:block}
+.verdict{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+#start .card{width:min(760px,94vw)}
+#start h1{margin:0;font-size:34px;letter-spacing:-.02em}#start h1 span{color:var(--warm)}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0;align-items:center}
+.row label{color:var(--dim);font-size:12px}
+input[type=text]{background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:8px;color:var(--ink);font:inherit;font-size:14px;padding:7px 9px;width:130px;user-select:text}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{background:none;border:0;color:var(--dim);font:inherit;padding:7px 12px;cursor:pointer}.seg button.on{background:#fff2;color:var(--ink)}
+.careers{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.car{border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;background:rgba(255,255,255,.04)}
+.car.on{border-color:var(--warm);background:rgba(243,181,98,.12)}
+.car b{font-size:15px;display:block}.car i{font-style:normal;color:var(--warm);font-size:12px}.car span{display:block;color:#b9c1cb;font-size:12px;margin-top:5px}
+.go{margin-top:14px;padding:11px 26px;border-radius:10px;border:0;background:var(--warm);color:#20160a;font:inherit;font-size:16px;font-weight:700;cursor:pointer}
+.help{color:#aeb8c4;font-size:12.5px;line-height:1.7;margin-top:10px}
+table.fin{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+table.fin td{padding:4px 0;border-bottom:1px solid var(--line)}table.fin td:last-child{text-align:right}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px 22px;font-size:13.5px}
+.grid2 div{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:3px 0}
+.grade{font-size:54px;font-weight:800;color:var(--warm);line-height:1}
+@media (max-width:900px){#mid{top:auto;bottom:150px}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud" hidden>
+  <div class="panel" id="dadP"><h3>Dad <b id="dadJob"></b></h3><div id="dadBars"></div></div>
+  <div class="panel" id="mid">
+    <div id="clock"><span id="yrL">Year 1 of 18</span><b id="clk">6:00 AM</b><span id="ageL"></span></div>
+    <div id="yr"><i></i></div>
+    <div id="life"></div>
+    <div id="money"></div>
+  </div>
+  <div class="panel" id="kidP"><h3><span id="kidN">Kid</span> <b id="kidSt"></b></h3><div id="kidBars"></div>
+    <div class="sub">Development <span style="float:right;text-transform:none;letter-spacing:0">| = on track</span></div><div id="kidSk"></div>
+    <div class="sub" id="scrL"></div></div>
+  <div id="cross"></div>
+  <div id="alert" hidden></div>
+  <div id="prompt"></div>
+  <div class="panel" id="actB" hidden></div>
+  <div id="toasts"></div>
+  <div class="panel" id="xp"></div>
+  <div id="keys"><span class="k">WASD</span>move <span class="k">E</span>do / stop <span class="k">Tab</span>money <span class="k">P</span>pause <span class="k">M</span>sound</div>
+</div>
+<div id="lids"></div>
+<div class="ov" id="modal" hidden><div class="card" id="mcard"></div></div>
+<div class="ov" id="fin" hidden><div class="card" id="fcard"></div></div>
+<div class="ov" id="pause" hidden><div class="card" style="text-align:center;width:340px"><h2>Paused</h2><p>Click to get back to it.<br>The laundry isn't going anywhere.</p></div></div>
+<div class="ov" id="end" hidden><div class="card" id="ecard" style="width:min(720px,94vw)"></div></div>
+
+<div class="ov" id="start" style="background:rgba(6,8,11,.72)"><div class="card">
+  <h1>Dad <span>Simulator</span></h1>
+  <p>Eighteen years, one day at a time. Each in-game day stands for a year of your kid's life: birth at 6 AM on day one,
+  college drop-off after day eighteen. Keep the kid fed, rested, loved and learning. Keep yourself, your marriage and your job alive while you do it.</p>
+  <div class="row">
+    <label>Your kid</label><input type="text" id="inKid" value="Charlie" maxlength="12">
+    <div class="seg" id="segSex"><button data-v="boy" class="on">son</button><button data-v="girl">daughter</button></div>
+    <label style="margin-left:8px">Your spouse</label><input type="text" id="inSp" value="Alex" maxlength="12">
+  </div>
+  <div class="careers" id="careers"></div>
+  <button class="go" id="go">Bring the baby home</button>
+  <div class="help">
+    <span class="k">W A S D</span>walk &nbsp; <b>mouse</b> look (or arrow keys) &nbsp; <span class="k">E</span>start / stop the highlighted activity &nbsp; <span class="k">1</span>-<span class="k">3</span>choices &nbsp; <span class="k">Tab</span>finances &amp; college fund<br>
+    Walk up to things in the house and do them. Time only moves fast while you sleep. A full run takes 20 to 30 minutes.
+    The dilemmas along the way are drawn from pediatric guidance (AAP, CDC and others); each one tells you what the literature says after you choose.
+  </div>
+</div></div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+const $=s=>document.querySelector(s);
+const clamp=(v,a=0,b=100)=>v<a?a:v>b?b:v, lerp=(a,b,t)=>a+(b-a)*t, sat=t=>clamp(t,0,1);
+const R=v=>typeof v==='function'?v():v;
+const QS=new URLSearchParams(location.search);
+const money=v=>(v<0?'-':'')+'$'+(Math.abs(v)>=10000?(Math.abs(v)/1000).toFixed(Math.abs(v)>=100000?0:1)+'k':Math.round(Math.abs(v)).toLocaleString());
+
+/* =====================================================================
+   SIMULATION
+   One game day (24 game hours) = one year of the child's life.
+   All rates below are per game hour.
+   ===================================================================== */
+const DAY_RATE=16/60, FAST_RATE=8/10;          // game hours per real second (awake / asleep or out)
+const COLLEGE_COST=110000;                     // ~4 yrs in-state public, tuition+room+board
+const CAREERS={
+  blue:{name:'Blue collar',job:'Union electrician',salary:74000,raise:.04,living:42000,decay:.4,stress:.7,tire:2.0,fit:.5,icon:'🔧',
+    blurb:'Steady pay, tired body. The job keeps you fit, and not much rattles you. Paid by the hour (9 for a full check, overtime on top), and nobody has taught a chatbot to pull wire.'},
+  white:{name:'White collar',job:'Account manager',salary:96000,raise:.08,living:60000,decay:.4,stress:1.0,tire:1.5,fit:-.3,icon:'💼',
+    blurb:'Good salary, a desk, and a calendar full of meetings that could have been emails. Salaried: a full day is 6 hours, and extra hours only buy goodwill.'},
+  tech:{name:'Tech bro',job:'Software engineer',salary:150000,raise:.10,living:100000,decay:.5,stress:1.3,tire:1.5,fit:-.3,icon:'💻',
+    blurb:'Big money, bigger rent, an on-call pager. Move fast and break sleep schedules.'},
+};
+const PERKS=[
+  ['swaddle','Swaddle Sensei','diapers, bedtime and soothing go 30% faster'],
+  ['chef','One-Armed Chef','feeding and chores go 30% faster'],
+  ['jokes','Dad Jokes','+20% bonding from everything you do together'],
+  ['nap','Power Napper','sleep restores 15% more energy'],
+  ['cal','Calendar Tetris','+10% work efficiency'],
+  ['gym','Garage Gym Rat','+25% fitness from exercise'],
+  ['listen','Active Listener','+25% from time with your spouse'],
+  ['zen','Zen Dad','stress hits your mind 20% less'],
+  ['coach','Sideline Legend','outdoor play builds twice the bond'],
+  ['legend','#1 Dad Mug','it is just a mug. You earned it.'],
+];
+const XP_PER_LEVEL=480, WORKDAY=6;
+// Milestones: [age, skill, title, flag]. Ages follow the CDC/AAP 2022 revised checklists
+// (the age by which ~75% of children do it), then ordinary school-age and teen markers.
+const MILES=[
+  [.17,'social','first real smile'],[.33,'motor','holds head steady'],[.5,'language','laughs and babbles'],[.5,'motor','rolls over'],
+  [.75,'motor','sits without support'],[.75,'social','plays peek-a-boo'],[1,'language','says "dada"'],[1,'motor','pulls up to stand'],
+  [1.25,'motor','takes first steps','walks'],[1.5,'language','says three or more words'],[2,'motor','runs and kicks a ball'],
+  [2,'language','puts two words together'],[2.5,'social','plays alongside other kids'],[3,'cognitive','is potty trained','potty'],
+  [3,'language','holds a real conversation'],[4,'motor','catches a ball'],[4,'cognitive','tells you a whole story'],
+  [5,'cognitive','counts to ten and writes their name'],[6,'motor','rides a bike'],[6.5,'language','reads a book to YOU'],
+  [8,'cognitive','makes their own breakfast'],[9,'social','has a best friend'],[10.5,'cognitive','does homework without being asked'],
+  [12,'social','stays home alone'],[13,'cognitive','cooks dinner for the family'],[14.5,'social','gets a first job mowing lawns'],
+  [16,'motor','passes the driving test'],[17,'cognitive','lands a part-time job','job'],[17.6,'language','finishes the college essay'],
+];
+const KIDACTS=new Set(['feed','play','outside','read','change','homework','hangout','bedtime','soothe']);
+const HEAD={on:false,log:null};
+let S=null, N={};
+const toastQ=[];
+function toast(msg,cls=''){ if(HEAD.on){HEAD.log&&HEAD.log.push((S.h/24).toFixed(2)+' '+msg);return;} toastQ.push({msg,cls}); }
+
+function newGame(cfg){
+  const C=CAREERS[cfg.career], girl=cfg.sex==='girl';
+  N={k:cfg.kid||'Charlie',w:cfg.spouse||'Alex',he:girl?'she':'he',him:girl?'her':'him',his:girl?'her':'his',He:girl?'She':'He',kid:girl?'daughter':'son'};
+  S={h:0,career:cfg.career,sex:cfg.sex,salary:C.salary,employed:true,hunt:0,huntNeed:0,rehire:1,clevel:1,decayMul:1,
+    dad:{energy:85,fitness:62,mind:78,social:62},bond:45,marriage:82,careerBar:50,money:9000,fund:0,contrib:0,
+    kid:{food:72,rest:80,clean:85,fun:70,love:75,school:75,skills:{motor:0,language:0,social:0,cognitive:0},
+      asleep:false,nap:false,sleepy:false,sleepyT:0,crying:false,cryT:0,wokeDad:false,away:false,busy:null,upset:null,spot:'mat',arrived:true,screen:false,wakes:[]},
+    mom:{load:35,task:null,spot:'couchM',arrived:true,atWork:false,asleep:false,gone:false,away:false},
+    mess:15,tv:false,workToday:0,screenToday:0,screenAvg:0,fitAvg:62,flags:{},fired:{},queue:[],xp:0,lvl:0,perks:{},miles:{},mileLog:[],
+    hyper:false,divorced:false,act:null,away:null,event:null,over:false,paused:false,dayIdx:0,nightDay:-1,cool:{},
+    stats:{work:0,kid:0,sleep:0,couple:0,screen:0,good:0,total:0,promos:0}};
+  return S;
+}
+const clockStr=(h=S.h)=>{const c=(h%24+6)%24,hh=Math.floor(c),mm=Math.floor((c-hh)*60/5)*5;return ((hh+11)%12+1)+':'+String(mm).padStart(2,'0')+(hh<12?' AM':' PM');};
+const sleepNeed=a=>a<1?14:a<3?12.5:a<6?11.5:a<13?10.5:9;   // AASM consensus (Paruthi 2016), mid-range hours per 24h
+function bedtime(a){let b=a<1?19:a<6?19.5:a<10?20.5:a<13?21.5:22.5; if(a>=10&&S.flags.phone==='free')b+=1.75; return b;}
+const screenLimit=a=>a<2?.15:a<6?1:a<13?2:3;
+const diaper=()=>!S.miles.potty;
+function needList(a){const l=['food','rest'];if(diaper())l.push('clean');l.push('fun','love');if(a>=6)l.push('school');return l;}
+function wellbeing(a){const l=needList(a);let s=0;for(const k of l)s+=S.kid[k];return s/l.length;}
+const ratio=s=>(S.kid.skills[s]+1.5)/(S.h/24/18*100+1.5);
+function fx(o){for(const k in o){const v=o[k];
+  if(k==='bond'||k==='marriage'||k==='careerBar')S[k]=clamp(S[k]+v);
+  else if(k==='money')S.money+=v; else if(k==='xp')addXP(v);
+  else if(k in S.dad)S.dad[k]=clamp(S.dad[k]+v);
+  else if(k==='load')S.mom.load=clamp(S.mom.load+v);
+  else if(k==='skills'){for(const s in v)S.kid.skills[s]=Math.max(0,S.kid.skills[s]+v[s]);}
+  else if(k==='flag')Object.assign(S.flags,v);
+  else if(k in S.kid)S.kid[k]=clamp(S.kid[k]+v);}}
+function addXP(v){S.xp+=v;while(S.lvl<PERKS.length&&S.xp>=(S.lvl+1)*XP_PER_LEVEL){const p=PERKS[S.lvl++];S.perks[p[0]]=1;toast(`⭐ Dad level ${S.lvl}: ${p[1]} — ${p[2]}.`,'mile');}}
+
+/* ---------- what the player can do ---------- */
+function offered(id){ // label if this activity exists right now, else null
+  const K=S.kid,M=S.mom,a=S.h/24,dayH=S.h%24;
+  switch(id){
+    case 'sleep':return 'Sleep'; case 'work':return S.employed?(S.career==='blue'?'Work a job':'Work'):'Job hunt';
+    case 'exercise':return 'Work out'; case 'relax':return M.gone?'Sit down':`Sit down (${N.w} may join)`; case 'chores':return 'Dishes and laundry';
+    case 'feed':return a<.5?`Give ${N.k} a bottle`:a<3?`Feed ${N.k}`:(dayH>=10.5&&dayH<14.5?'Family dinner':`Make ${N.k} a meal`);
+    case 'play':return a<.6?'Tummy time':a<10?`Play with ${N.k}`:'Play a board game';
+    case 'outside':return a<1?null:a<6?'Play outside':a<12?'Play catch':'Shoot hoops';
+    case 'read':return a<10?`Read to ${N.k}`:`Talk about ${N.his} day`;
+    case 'change':return diaper()?'Change diaper':null; case 'homework':return a>=6?'Help with homework':null;
+    case 'soothe':return K.crying?`Soothe ${N.k}`:null;
+    case 'bedtime':{ if(K.crying||K.asleep||a>=13)return null; const bt=bedtime(a)-6;
+      if(K.sleepy||dayH>=bt-1)return a<9?'Bedtime routine':'Say goodnight'; if(a<4&&K.rest<50)return 'Put down for a nap'; return null; }
+    case 'hangout':return a<2?`Cuddle ${N.k}`:`Hang out with ${N.k}`;
+    case 'couple':return M.gone?null:`Talk with ${N.w}`;
+    case 'date':return M.gone?null:`Date night (${money(90+(a<12?60:0))})`;
+    case 'friends':return 'Night out with friends ($40)';
+  } return null;
+}
+function actBlock(id){ // reason it can't start right now, or ''
+  const K=S.kid,M=S.mom,a=S.h/24;
+  if(S.away)return 'You are out';
+  if(KIDACTS.has(id)){
+    if(K.away)return `${N.k} is at ${a>=5?'school':'daycare'}`;
+    if(id==='soothe')return K.crying?'':'Nothing to soothe';
+    if(K.crying)return `${N.k} is crying. Go to ${N.him}`;
+    if(K.asleep)return `${N.k} is asleep`;
+  }
+  if(id==='couple'||id==='date'){
+    if(M.atWork)return `${N.w} is at work`; if(M.asleep)return `${N.w} is asleep`;
+    if(id==='couple'&&M.task&&M.task.kid)return `${N.w} is busy with ${N.k}`;
+    if(id==='date'&&K.crying)return `${N.k} is crying`;
+  }
+  return '';
+}
+function startAct(id){
+  if(!offered(id))return false; const b=actBlock(id); if(b){toast(b+'.','dim');return false;}
+  if(S.act)stopAct();
+  const a=S.h/24; S.act={id,t:0,p:0};
+  if(KIDACTS.has(id)){S.kid.busy='dad'; if(S.mom.task&&S.mom.task.kid)S.mom.task=null;}
+  if(id==='date'){S.money-=90+(a<12?60:0);S.away={type:'date',left:3};}
+  if(id==='friends'){S.money-=40+(S.mom.gone&&a<12?60:0);S.away={type:'friends',left:3};}
+  return true;
+}
+function stopAct(){ if(!S.act)return; if(KIDACTS.has(S.act.id)&&S.kid.busy==='dad')S.kid.busy=null; S.away=null; S.act=null; }
+function putDown(nap){const K=S.kid;K.asleep=true;K.nap=!!nap;K.sleepy=false;K.sleepyT=0;K.busy=null;K.crying=false;if(S.mom.task&&S.mom.task.kid)S.mom.task=null;}
+function layoff(need,mult,same){S.employed=false;S.hunt=0;S.huntNeed=need;S.rehire=mult;S.flags.sameField=same;S.dad.mind=clamp(S.dad.mind-14);}
+function kidSpot(){
+  const K=S.kid,A=S.act,M=S.mom,a=S.h/24,dayH=S.h%24;
+  if(K.away)return 'gone'; if(K.asleep||K.crying)return 'bedK';
+  const st=t=>({feed:a<3.5?'highchair':'chairK',dinner:'chairK',play:'mat',outside:'yardK',read:'armchair',love:'armchair',change:'changeK',homework:'deskK',bedtime:'bedK',soothe:'bedK'})[t];
+  const here=()=>(K.spot==='arms'||K.spot==='gone'||K.spot==='couchK')?'mat':K.spot;
+  if(K.busy==='dad'&&A){ if(a<1&&(A.id==='feed'||A.id==='read'||A.id==='hangout'))return 'arms'; return st(A.id)||here(); }
+  if(K.busy==='mom'&&M.task){ if(M.task.type==='feed'&&a<.5)return 'couchK'; return st(M.task.type)||here(); }
+  if(S.tv)return 'tvK';
+  return a<1.2?'mat':a<5?'wander':a<12?((dayH>=9.5&&dayH<12)?'yardK':'rugK'):'teen';
+}
+function momSpot(){
+  const M=S.mom,T=M.task,a=S.h/24, stay=()=>(M.spot==='gone'||M.spot==='bedM')?'couchM':M.spot;
+  if(M.gone||M.atWork||M.away)return 'gone'; if(M.asleep)return 'bedM'; if(!T)return stay();
+  switch(T.type){case 'feed':return a<.5?'couchM':'tableM';case 'dinner':return 'chairM';case 'change':return 'changeM';case 'play':return 'matM';
+    case 'love':return 'armM';case 'homework':return 'deskM';case 'bedtime':return 'bedKM';case 'chores':return 'sinkM';
+    case 'talk':return S.act&&S.act.id==='couple'?stay():'couchM';default:return 'couchM';}
+}
+
+/* ---------- one tick ---------- */
+function step(dh){
+  const K=S.kid,D=S.dad,M=S.mom,C=CAREERS[S.career],P=S.perks;
+  const age=S.h/24,dayH=S.h%24,day=Math.floor(S.h/24);
+  let A=S.act;
+  if(day!==S.dayIdx){S.dayIdx=day;newDay(day);A=S.act;}
+
+  // schedules: school / daycare, spouse's job, nights
+  const wasAway=K.away;
+  K.away=dayH>=2&&dayH<9&&(age>=5||(S.flags.care==='daycare'&&age>=.25));
+  if(K.away&&!wasAway){ if(A&&KIDACTS.has(A.id)){stopAct();A=null;toast(`${N.k} is off to ${age>=5?'school':'daycare'}.`,'dim');} K.busy=null; if(M.task&&M.task.kid)M.task=null; if(K.asleep&&!K.nap){K.asleep=false;} }
+  M.gone=S.divorced;
+  M.atWork=!M.gone&&dayH>=2&&dayH<10&&age>=.25&&!(S.flags.care==='home'&&age<5);
+  M.asleep=!M.gone&&!M.atWork&&(dayH>=16.75||dayH<.25);
+  M.away=!!(S.away&&S.away.type==='date');
+  const date=M.away, dadHome=!S.away, dadAwake=!(A&&A.id==='sleep');
+  const momFree=!M.gone&&!M.atWork&&!M.asleep&&!M.away;
+  const need=sleepNeed(age), bt=bedtime(age)-6;
+
+  // the kid's sleep
+  if(K.asleep){
+    if(K.nap){ if(age<1?(K.rest>90||K.food<22||dayH>11.5):dayH>=8.5){K.asleep=false;K.nap=false;} }
+    else if(dayH>=.5&&dayH<2){K.asleep=false;}
+  } else if(!K.crying){
+    if(age<1){ if(K.rest<40&&dayH>1.5&&dayH<10.5&&K.busy!=='dad')putDown(1); }
+    else if(age<4){ if(dayH>=6.5&&dayH<7.5&&K.busy!=='dad')putDown(1); }
+    if(!K.asleep&&dayH>=bt&&!K.away){ K.sleepy=true;K.sleepyT+=dh;
+      if(date){ if(K.sleepyT>.4)putDown(); }
+      else if(age>=9){ if(K.busy!=='dad')putDown(); }
+      else if(K.sleepyT>(age<3?1.5:2.5)&&K.busy!=='dad'){putDown();K.love=clamp(K.love-8);}
+    }
+  }
+  // night wakings: frequent in the first six months, tapering through the toddler years
+  if(dayH>=16&&S.nightDay!==day){ S.nightDay=day;K.wakes=[];const r=Math.random;
+    const n=age<.5?2:age<1?1:age<2?(r()<.45?1:0):age<5?(r()<.15?1:0):0;
+    for(let i=0;i<n;i++)K.wakes.push({t:17.5+(i+r())*(5/n),mom:n===2&&i===0&&!M.gone}); }
+  if(K.wakes.length&&dayH>16&&dayH>=K.wakes[0].t){ const w=K.wakes.shift();
+    if(K.asleep&&!K.nap&&!date){ if(w.mom){M.load=clamp(M.load+5);toast(`${N.w} took the ${clockStr()} feed.`,'dim');}
+      else{K.asleep=false;K.crying=true;K.cryT=0;K.wokeDad=false;} } }
+  if(K.crying){ K.cryT+=dh;
+    if(!K.wokeDad){K.wokeDad=true; if(dadHome){ if(A&&A.id==='sleep'){stopAct();A=null;} toast(`${clockStr()}. ${N.k} is crying.`,'warn'); } }
+    if(!(A&&A.id==='soothe')){ const ignoring=!dadHome||(A&&A.id==='sleep');
+      if(!M.gone&&!M.away&&(K.cryT>1.3||(ignoring&&K.cryT>.15))){ putDown();M.load=clamp(M.load+8);if(dadHome)S.marriage=clamp(S.marriage-2.5);toast(`${N.w} got up with ${N.k}.`,'dim'); }
+      else if(K.cryT>2.2){putDown();K.love=clamp(K.love-10);} } }
+
+  // ----- dad: baseline drains
+  const awake=dadAwake;
+  if(awake)D.energy-=5*(S.hyper?1.2:1)*dh;
+  D.fitness-=.65*dh; D.social-=.9*dh;
+  let mind=awake?-.5:0;
+  if(awake&&D.energy<30)mind-=.5+2*(1-D.energy/30);
+  if(D.social<25)mind-=1; if(S.mess>70)mind-=.3; if(S.money<0)mind-=.6; if(!S.employed)mind-=.8;
+  const eff=(D.mind>30?1:.6)*(D.energy>20?1:.6)*(K.upset&&!K.away&&dadHome?.6:1)*(P.cal?1.1:1);
+  const teen=age>=12, bondUp=r=>{S.bond+=r*dh*(P.jokes?1.2:1)*(teen?.85:1);S.stats.kid+=dh*.0;}, loveUp=r=>{K.love+=r*dh*(teen?.75:1);};
+  const couple=()=>{S.marriage+=7*(P.listen?1.25:1)*(S.flags.counsel?1.15:1)*dh;mind+=4;D.social+=8*dh;M.load-=6*dh;S.stats.couple+=dh;};
+  const mult={motor:1,language:1,social:1,cognitive:1};
+  const quick=P.swaddle?1.3:1;
+
+  // ----- dad: the activity
+  if(A){ A.t+=dh; const withKid=KIDACTS.has(A.id), ready=!withKid||K.arrived;
+    if(withKid&&ready){S.stats.kid+=dh; if(momFree)M.load-=2*dh;}
+    switch(A.id){
+      case 'sleep':D.energy+=12*(P.nap?1.15:1)*dh;mind+=1.5;S.stats.sleep+=dh;break;
+      case 'work':
+        if(S.employed){S.careerBar+=2.2*eff*dh;if(S.career==='blue')S.money+=S.salary/9*dh;else if(S.workToday<WORKDAY)S.money+=S.salary/WORKDAY*dh;S.workToday+=dh;}
+        else{S.hunt+=eff*dh; if(S.hunt>=S.huntNeed){S.employed=true;S.salary*=S.rehire;S.careerBar=45;toast(`🤝 Offer accepted: ${money(S.salary)}/yr. You are employed again.`,'good');addXP(30);} }
+        D.energy-=C.tire*dh;mind-=C.stress;D.social+=.4*dh;D.fitness+=C.fit*dh;S.stats.work+=dh;break;
+      case 'exercise':D.fitness+=32*(P.gym?1.25:1)*dh;mind+=5;D.energy-=5*dh;if(D.fitness>=100)stopAct();break;
+      case 'relax':if(M.task&&M.task.type==='talk'&&M.arrived)couple();else mind+=7;D.energy+=1*dh;break;
+      case 'couple':if(M.arrived)couple();if(!momFree)stopAct();break;
+      case 'date':S.marriage+=11*(P.listen?1.25:1)*dh;D.social+=10*dh;mind+=6;M.load-=8*dh;S.stats.couple+=dh;break;
+      case 'friends':D.social+=28*dh;mind+=8;break;
+      case 'chores':S.mess-=40*(P.chef?1.3:1)*dh;mind-=.3;if(momFree){S.marriage+=1.2*dh;M.load-=3*dh;}if(S.mess<=0)stopAct();break;
+      case 'feed':if(ready){K.food+=60*(P.chef?1.3:1)*dh;bondUp(3);
+          const dinner=M.task&&M.task.type==='dinner'&&M.arrived;
+          if(dinner){loveUp(12);S.marriage+=2.5*dh;D.social+=4*dh;mult.language+=2;mult.social+=2;}
+          if(K.food>=100&&(!dinner||A.t>1.2))stopAct();}break;
+      case 'play':if(ready){K.fun+=38*dh;loveUp(14);bondUp(7);mind+=3;D.energy-=1*dh;mult.social+=4;mult.motor+=2;mult.cognitive+=1;}break;
+      case 'outside':if(ready){K.fun+=34*dh;loveUp(12);bondUp(P.coach?14:7);D.fitness+=8*dh;mind+=4;D.energy-=2*dh;mult.motor+=6;mult.social+=2;}break;
+      case 'read':if(ready){loveUp(28);K.fun+=10*dh;bondUp(7);mind+=1;if(age<10){mult.language+=5;mult.cognitive+=2;}else{mult.language+=2;mult.social+=3;}}break;
+      case 'hangout':if(ready){loveUp(24);K.fun+=8*dh;bondUp(6);mind+=2;mult.social+=3;mult.language+=2;}break;
+      case 'change':if(ready){K.clean+=150*quick*dh;bondUp(2);if(K.clean>=100)stopAct();}break;
+      case 'homework':if(ready){K.school+=35*dh;bondUp(5);mind-=.5;mult.cognitive+=5;if(K.school>=100)stopAct();}break;
+      case 'bedtime':if(ready){A.p+=dh*quick;loveUp(18);if(A.p>=.4){const nap=dayH<bt-1.5;putDown(nap);K.rest=clamp(K.rest+5);S.bond+=3;if(momFree){S.marriage=clamp(S.marriage+1);}S.act=null;toast(nap?`${N.k} is down for a nap.`:`${N.k} is asleep. Lights out.`,'good');}}break;
+      case 'soothe':if(ready){A.p+=dh*quick;if(A.p>=.4){putDown();S.bond+=2.5;if(!M.gone)S.marriage=clamp(S.marriage+1.5);S.act=null;toast(`${N.k} is back asleep. You are a hero. Go to bed.`,'good');}}break;
+    }
+    A=S.act;
+  }
+  if(S.away){S.away.left-=dh;if(S.away.left<=0){const t=S.away.type;stopAct();A=null;toast(t==='date'?`Home from date night. ${N.k} survived the sitter.`:'Home from a night out. You remember how to talk to adults.','good');}}
+
+  // ----- spouse
+  if(momFree){
+    let T=M.task;
+    if(T&&T.kid&&(K.away||K.asleep||K.busy==='dad'||K.crying)){T=M.task=null;}
+    if(T&&T.type==='talk'&&!(A&&(A.id==='relax'||A.id==='couple'))){T=M.task=null;}
+    if(T&&T.type==='dinner'&&!(A&&A.id==='feed')){T=M.task=null;}
+    if(!T||T.type==='idle'||T.type==='chores'){
+      const kidOK=!K.away&&!K.asleep&&!K.crying&&K.busy!=='dad'; let pick=null;
+      if(kidOK){ if(K.sleepy&&age<9&&K.sleepyT>.5)pick={type:'bedtime',kid:1,p:0};
+        else{ let lo=42;const c=[['food','feed'],['love','love']]; if(diaper())c.push(['clean','change']); if(age<10)c.push(['fun','play']); if(age>=6)c.push(['school','homework']);
+          for(const [k,t] of c)if(K[k]<lo){lo=K[k];pick={type:t,need:k,kid:1};} } }
+      if(!pick&&A&&(A.id==='relax'||A.id==='couple'))pick={type:'talk'};
+      if(!pick&&A&&A.id==='feed'&&age>=3&&dayH>=10.5&&dayH<14.5)pick={type:'dinner'};
+      if(!pick&&S.mess>55)pick={type:'chores'};
+      if(pick&&!(T&&T.type===pick.type)){M.task=T=pick;if(pick.kid)K.busy='mom';}
+      if(!T)M.task=T={type:'idle'};
+    }
+    const me=.85*(M.load>70?.6:1), lg=(S.flags.mload?.8:1)*dh, done=()=>{M.task=null;if(K.busy==='mom')K.busy=null;};
+    if(M.arrived&&(!T.kid||K.arrived))switch(T.type){
+      case 'feed':K.food+=60*me*dh;M.load+=5*lg;if(K.food>=92)done();break;
+      case 'change':K.clean+=150*me*dh;M.load+=5*lg;if(K.clean>=95)done();break;
+      case 'play':K.fun+=38*me*dh;K.love+=10*me*dh;M.load+=5*lg;mult.social+=3;mult.motor+=1.5;if(K.fun>=88)done();break;
+      case 'love':K.love+=26*me*dh;K.fun+=8*dh;M.load+=4*lg;mult.language+=4;mult.cognitive+=1.5;if(K.love>=85)done();break;
+      case 'homework':K.school+=35*me*dh;M.load+=5*lg;mult.cognitive+=4;if(K.school>=88)done();break;
+      case 'bedtime':T.p+=dh;M.load+=5*lg;if(T.p>=.4)putDown();break;
+      case 'chores':S.mess-=35*me*dh;M.load+=4*lg;if(S.mess<12)done();break;
+      case 'idle':M.load-=4*dh;break;
+    }
+  } else { M.task=null; if(K.busy==='mom')K.busy=null; if(M.asleep)M.load-=2.5*dh; else if(M.atWork)M.load+=.8*dh; }
+
+  // ----- kid: needs
+  const kAwake=!K.asleep;
+  if(K.away||date){ K.food+=(72-K.food)*.5*dh;K.fun+=(68-K.fun)*.4*dh;if(diaper())K.clean+=(80-K.clean)*.5*dh;K.love-=1.2*dh;
+    if(K.away){mult.cognitive+=.6;mult.social+=.6;mult.language+=.3;mult.motor+=.2;} }
+  else{
+    K.food-=(age<1?7:5.5)*(kAwake?1:.3)*dh; if(diaper())K.clean-=(kAwake?5:2)*dh;
+    if(kAwake){ K.fun-=6*dh; if(!K.busy)K.fun+=(age<1?0:age<3?2:age<6?4:age<10?6:6.5)*dh; K.love-=(teen?2.5:3.5)*dh;
+      if(age>=10&&!K.busy&&K.food<(age>=14?60:40))K.food+=30*dh; }
+  }
+  if(K.asleep)K.rest+=100/need*1.08*dh; else K.rest-=100/(24-need)*dh;
+  if(age>=6&&dayH>=9&&dayH<16.5&&kAwake){K.school-=2.5*dh;if(!(A&&A.id==='homework'))K.school+=K.skills.cognitive/100*4.2*(K.rest>40?1:.5)*dh;}
+  // screens
+  K.screen=false;
+  if(!K.away&&kAwake&&!K.busy&&!date){
+    if(S.tv){K.screen=true;K.fun+=40*dh;K.love-=1*dh;S.screenToday+=dh;}
+    else if(age>=10&&dayH>=9){const f=({none:1,limits:2,free:4.6}[S.flags.phone]||1.5)/7;S.screenToday+=f*dh;K.fun+=f*18*dh;K.screen=f>.4;}
+    else if(S.flags.habit&&age<7&&dayH>=9&&dayH<13)S.screenToday+=.2*dh;
+  }
+  if(S.tv&&(K.asleep||K.away))S.tv=false;
+  K.upset=null;
+  if(K.crying)K.upset='cry';
+  else if(!K.away&&kAwake&&!date){let lo=25;for(const k of ['food','clean','fun','love'])if((k!=='clean'||diaper())&&K[k]<lo){lo=K[k];K.upset=k;} if(!K.upset&&K.rest<15)K.upset='rest';}
+  if(K.upset){S.bond-=1*dh;if(dadHome&&awake)mind-=1;}
+
+  // ----- the big bars
+  S.bond-=.33*dh;
+  if(!S.divorced){let m=-.3;if(M.load>70)m-=.35;if(S.mess>70)m-=.2;if(S.money<0)m-=.25;S.marriage+=m*dh;}
+  if(S.employed)S.careerBar-=C.decay*S.decayMul*dh;
+  S.mess+=(2.2+(age<12?1:0))*(S.flags.chores&&age>=8?.7:1)*dh;
+  const daycare=S.flags.care==='daycare'&&age>=.25&&age<5;
+  const exp=C.living*(S.employed?1:.75)+(age<12?15000:17500)+(daycare?13000:0)+(S.flags.care==='home'&&age>=.25&&age<5?26000:0)+(S.divorced?16000:0)+(S.flags.travel&&age<16?6000:0);
+  S.expense=exp; S.money-=exp/24*dh;
+  if(S.contrib>0){ if(S.money>0){const c=S.contrib*12/24*dh;S.money-=c;S.fund+=c;} else{S.contrib=0;toast('529 contributions paused. Savings ran dry.','warn');} }
+  S.fund*=Math.pow(1.06,dh/24);
+  if(mind<0&&P.zen)mind*=.8;
+  D.mind+=mind*dh;
+  S.fitAvg+=(D.fitness-S.fitAvg)*dh/36;
+
+  // ----- kid: development
+  const well=wellbeing(age), q=(.5+.62*well/100)*(.85+.3*S.bond/100)*.86;
+  const pen=clamp((Math.max(S.screenAvg,S.screenToday)-screenLimit(age))*.22,0,.6); S.screenPen=pen;
+  const cap=Math.min(100,age/18*115+2);
+  for(const s in mult){ let g=.2315*q*mult[s]; if(s!=='motor')g*=1-pen*(s==='cognitive'?.6:1);
+    if(s==='language'&&S.flags.catchup>age)g*=1.6; if(K.rest<30)g*=.8; K.skills[s]=Math.min(cap,K.skills[s]+g*dh); }
+
+  // ----- clamp, score
+  const hc=S.hyper?85:100; D.energy=clamp(D.energy,0,hc);D.fitness=clamp(D.fitness);D.mind=clamp(D.mind);D.social=clamp(D.social);
+  for(const k of ['food','rest','clean','fun','love','school'])K[k]=clamp(K[k]);
+  S.bond=clamp(S.bond);S.marriage=clamp(S.marriage);S.careerBar=clamp(S.careerBar,0,101);S.mess=clamp(S.mess);M.load=clamp(M.load);
+  const parts=[(D.energy+D.fitness+D.mind+D.social)/4,S.bond,S.divorced?25:S.marriage,S.employed?S.careerBar:15,well];
+  S.sat=parts.reduce((a,b)=>a+b)/5/100*(.5+.5*sat(Math.min(...parts)/50));
+  addXP(S.sat*10*dh);
+
+  // ----- thresholds
+  if(S.employed){
+    if(S.careerBar>=100){S.clevel++;S.salary*=1+C.raise;S.careerBar=55;S.stats.promos++;addXP(30);toast(`📈 Promoted. New pay: ${money(S.salary)}/yr.`,'good');}
+    else if(S.careerBar<=0){layoff(7,.85,S.flags.sameField);S.queue.push(EV.fired);}
+    else if(S.careerBar<18&&!(S.cool.cw>age)){S.cool.cw=age+1.2;toast('📉 Your boss wants "a quick chat about priorities." Put in some hours.','warn');}
+  }
+  if(!S.divorced){ if(S.marriage<=0){S.divorced=true;S.queue.push(EV.divorce);} else if(S.marriage<24&&!(S.cool.counsel>age)){S.cool.counsel=age+4;S.queue.push(EV.counsel);} }
+  if(D.mind<=3&&!(S.cool.burn>age)){S.cool.burn=age+1.5;S.queue.push(EV.burnout);}
+  if(D.energy<=1&&awake&&dadHome){ if(S.act)stopAct(); S.act={id:'sleep',t:0,p:0}; toast('You fall asleep standing up. The body keeps the score.','warn'); }
+
+  S.h+=dh;
+  // milestones
+  const a2=S.h/24;
+  for(const m of MILES){ const id=m[3]||m[2]; if(S.miles[id])continue; const at=id==='potty'?(S.flags.pottyAge||3.05):m[0]; if(a2<at)continue;
+    const late=a2>at*1.35+.3; if(ratio(m[1])>=.8||late){ S.miles[id]=1;S.mileLog.push([a2,m[2]]);addXP(40);
+      toast(`🌟 ${N.k} ${m[2]}${a2>at*1.15+.2?' (a little late, but there)':''}.`,'mile'); if(id==='job')S.fund+=4000; } }
+  if(a2>=18){S.over=true;return;}
+  checkEvents();
+  const ks=kidSpot(); if(ks!==K.spot){K.spot=ks;K.arrived=HEAD.on||ks==='arms'||ks==='gone';}
+  const ms=momSpot(); if(ms!==M.spot){M.spot=ms;M.arrived=HEAD.on||ms==='gone';}
+}
+function newDay(y){
+  const K=S.kid; S.screenAvg=lerp(S.screenAvg,S.screenToday,.5);S.stats.screen+=S.screenToday;S.screenToday=0;S.workToday=0;K.sleepy=false;K.sleepyT=0;
+  if(S.act&&S.act.id==='sleep'){stopAct();toast('⏰ 6:00 AM.','dim');}
+  toast(`🎂 ${N.k} turns ${y}.`,'mile');addXP(20);
+  if(y>=3&&!S.hyper&&S.fitAvg<36){S.hyper=true;S.queue.push(EV.hyper);}
+  else if(S.hyper&&S.fitAvg>58){S.hyper=false;toast('🩺 Checkup: blood pressure is back to normal. Keep moving.','good');}
+  else if(y%4===0&&!S.hyper)toast(S.fitAvg>58?'🩺 Annual physical: BP 118/76. Keep doing what you are doing.':'🩺 Annual physical: BP is creeping up. The doctor says to move more.',S.fitAvg>58?'good':'warn');
+}
+function checkEvents(){
+  if(S.event)return;
+  if(S.queue.length){S.event={def:S.queue.shift(),stage:0};return;}
+  const age=S.h/24;
+  for(const f of FOLLOW){ if(S.fired[f.id]||age<f.age)continue; S.fired[f.id]=1; if(!f.cond||f.cond())f.run(); }
+  if(S.queue.length){S.event={def:S.queue.shift(),stage:0};return;}
+  for(const e of EVENTS){ if(S.fired[e.id])continue; if(age<e.age)break; S.fired[e.id]=1; if(e.cond&&!e.cond())continue; S.event={def:e,stage:0}; return; }
+}
+function choose(i){
+  const ev=S.event; if(!ev||ev.stage)return; const cs=R(ev.def.choices), c=cs[i]; if(!c)return;
+  ev.pick=c; ev.graded=cs.some(x=>x.g); if(ev.graded){S.stats.total++; if(c.g){S.stats.good++;addXP(40);}}
+  c.fx&&c.fx(); ev.res=R(c.r)||''; ev.stage=1;
+  if(!ev.res&&!ev.def.lit)S.event=null;
+}
+
+/* ---------- dilemmas ---------- */
+const EV={
+  hyper:{title:'The doctor frowns at the cuff',tag:'Your health',text:()=>`"138 over 88. That is stage 1 hypertension. When did you last exercise on purpose?" You try to remember. You cannot. Until your fitness comes back up you tire faster and your energy tops out lower.`,
+    choices:[{t:'"I will start Monday."',r:'Half an hour a day in the garage gym is enough to hold steady. Playing outside with the kid counts too.'}],
+    lit:'ACC/AHA 2017 guideline: stage 1 hypertension is 130–139 / 80–89 mmHg. Regular aerobic activity (about 150 min a week) lowers systolic pressure roughly 5–8 mmHg. (Whelton et al., Hypertension 2018;71:e13)'},
+  divorce:{title:'Papers',tag:'Your marriage',text:()=>`${N.w} is not angry anymore, which is worse. "I have been doing this alone for a long time." You split custody and the savings. ${N.k} now has two bedrooms and a calendar.`,
+    choices:[{t:'Sign.',fx:()=>{S.money=S.money>0?S.money*.5:S.money;fx({mind:-25,social:-10,love:-20,bond:-6});},r:()=>`${N.w} still covers part of the parenting from across town, but the house is quiet and everything costs more.`}],
+    lit:'Roughly two-thirds of couples report a drop in relationship satisfaction in the three years after a first baby; it is the shared load and small daily turning-toward that protect it. (Shapiro, Gottman & Carrère, J Fam Psychol 2000;14:59)'},
+  counsel:{title:'"We need to talk"',tag:'Your marriage',text:()=>`${N.w} sits on the edge of the bed. "We are roommates who share a child. I do not want that." A friend recommended a couples therapist.`,
+    choices:[{t:'Book the therapist. ($2,400)',g:1,fx:()=>fx({marriage:20,money:-2400,flag:{counsel:1}}),r:'It is awkward and expensive and it works. Time together counts for more from here on.'},
+      {t:'"We are fine. We are just tired."',fx:()=>fx({marriage:-3}),r:`${N.w} nods slowly. Nothing changes.`}],
+    lit:'Daily, boring maintenance beats grand gestures: sit down together, do your share without being asked, get out of the house as a couple sometimes.'},
+  burnout:{title:'The wall',tag:'Your health',text:()=>`You are sitting in the driveway and you cannot make yourself go inside. You have been running on fumes for a long time, and the fumes are gone.`,
+    choices:[{t:'Tell someone. Take the week.',fx:()=>{S.dad.mind=38;fx({careerBar:-12,marriage:-5});},r:'You lose ground at work and at home, and you get your head back above water. Sleep, exercise, friends and time with your spouse all refill the tank.'}],
+    lit:'About 1 in 10 fathers experience depression in the perinatal period, and paternal depression tracks with poorer child outcomes. Fathers should be screened too. (Paulson & Bazemore, JAMA 2010;303:1961; AAP clinical report, Yogman & Garfield, Pediatrics 2016;138:e20161128)'},
+  fired:{title:'Let go',tag:'Your career',text:()=>`"We are going in a different direction." The direction is away from you. Go to your desk and job hunt.`,choices:[{t:'Update the résumé.'}]},
+  speech:{title:'Well-child visit',tag:()=>`${N.k} · development`,text:()=>`The pediatrician runs through the developmental screen. "${N.k} is behind on language for ${N.his} age.${S.screenAvg>screenLimit(S.h/24)?' How much screen time are we talking about on a normal day?':''} I would like to refer you for an evaluation."`,
+    choices:[{t:'Take the referral: speech therapy, and a reading plan at home. ($600)',g:1,fx:()=>{S.flags.catchup=S.h/24+2.5;fx({money:-600});},r:`Therapy plus a lot of talking and reading. ${N.k}'s language grows faster for the next couple of years.`},
+      {t:'"Kids talk when they are ready. Let us wait."',r:'Maybe. Waiting costs the years when catching up is easiest.'}],
+    lit:'Higher screen time at 24 and 36 months predicts poorer performance on developmental screening later (Madigan et al., JAMA Pediatr 2019;173:244). This is an association with delays, mostly language and attention, and it is largely about what screens displace: talk, play and sleep. Early intervention works better the earlier it starts.'},
+};
+const EVENTS=[
+{id:'sleep',age:.012,title:'First night home',text:()=>`9 PM. ${N.k} is finally drowsy. Your mother-in-law gifted a plush bumper set and a quilt. Where does ${N.he} sleep?`,
+ choices:[{t:'In our bed, between us. Easier for night feeds.',r:'You lie rigid all night, terrified of rolling over.',fx:()=>fx({energy:-12,mind:-6})},
+  {t:'On the back, in a bare bassinet next to our bed.',g:1,r:()=>`Boring, empty, safe. ${N.k} grunts like a tiny walrus all night.`,fx:()=>fx({mind:4,marriage:2})},
+  {t:'On the tummy with the quilt and bumpers. Looks cozy.',r:()=>`${N.w} moves ${N.him} at 2 AM after rereading the hospital handout. Words are exchanged.`,fx:()=>fx({marriage:-6,mind:-4})}],
+ lit:'AAP 2022 safe sleep policy: on the back, on a firm flat surface with nothing else in it, sharing your room but not your bed, ideally for the first 6 months. (Moon et al., Pediatrics 2022;150:e2022057990)'},
+{id:'fever',age:.12,title:'3 AM, six weeks old',text:()=>`${N.k} feels hot. The thermometer says 100.6°F. ${N.He} is fussy but feeding.`,
+ choices:[{t:'Call the pediatrician right now.',g:1,r:'The nurse line sends you to the ER. Hours of tests, everything comes back clean. You have never been so glad to be bored.',fx:()=>fx({energy:-14,money:-400,bond:3})},
+  {t:'Give infant Tylenol and recheck in the morning.',r:'The morning nurse is alarmed that you waited, and that you dosed a six-week-old. You spend the day in the ER anyway.',fx:()=>fx({mind:-10,money:-400,careerBar:-3})},
+  {t:'It is a low fever. Babies run warm. Back to bed.',r:'By breakfast the fever is 101.5 and so is your heart rate. Everything turns out fine. It does not always.',fx:()=>fx({mind:-14,marriage:-4,money:-400})}],
+ lit:'A rectal temperature of 100.4°F (38.0°C) or higher in an infant under about two months is an emergency evaluation, even when the baby looks well. (Pantell et al., AAP guideline, Pediatrics 2021;148:e2021052228)'},
+{id:'cry',age:.2,title:'The witching hour',text:()=>`${N.k} has been screaming for two hours. Fed, changed, burped, bounced. Nothing works. ${N.w} is asleep after the last shift. Your jaw is tight and your hands are shaking.`,
+ choices:[{t:'Keep bouncing. Grit your teeth. Push through.',r:'You make it. Barely. You were closer to the edge than you want to admit.',fx:()=>fx({mind:-12,energy:-8})},
+  {t:`Lay ${N.him} safely in the crib, close the door, breathe for ten minutes.`,g:1,r:()=>`${N.k} cries in the crib. Nobody is harmed by ten minutes of crying. You come back steadier.`,fx:()=>fx({mind:3})},
+  {t:`Wake ${N.w} and tap out.`,g:1,r:'That is what a co-parent is for. You owe one.',fx:()=>fx({mind:5,load:8,marriage:-1})}],
+ lit:'Infant crying peaks around 5–6 weeks at over two hours a day and falls off by 3–4 months (Wolke et al., J Pediatr 2017;185:55). Putting a crying baby down somewhere safe and walking away is the recommended move when you are at your limit.'},
+{id:'care',age:.25,title:'Leave is over',text:()=>`${N.w}'s parental leave ends Monday. Somebody has to watch ${N.k} from 8 to 4 for the next five years.`,
+ choices:[{t:'Daycare. ($13k a year. The house is empty during the workday.)',fx:()=>fx({flag:{care:'daycare'}}),r:()=>`Drop-off is brutal for a week. Then ${N.k} loves it and you get your workday back.`},
+  {t:()=>`${N.w} stays home until kindergarten. (One income: about $26k a year less, and ${N.w} carries the days.)`,fx:()=>fx({flag:{care:'home'}}),r:()=>`${N.w} is home all day with ${N.k}. That is a job, and the evenings need to be yours.`},
+  {t:()=>`I will juggle it. ${N.k} stays home with me while I work. (Free. Chaotic.)`,fx:()=>fx({flag:{care:'juggle'}}),r:()=>`Your coworkers get to know ${N.k} from the background of every call.`}],
+ lit:'The NICHD Study of Early Child Care found that the quality of care and, above all, of parenting matter far more for development than whether a child is in daycare or at home. (NICHD ECCRN, Am Psychol 2006;61:99)'},
+{id:'ppd',age:.45,cond:()=>S.dad.mind<60,title:'Not yourself',text:()=>`You snap at the dog. You feel nothing when ${N.k} smiles, then feel terrible about feeling nothing. ${N.w} asks if you are okay.`,
+ choices:[{t:'"Honestly, no." Talk to her, then to your doctor.',g:1,fx:()=>fx({mind:14,marriage:4,money:-200}),r:'Saying it out loud is the hard part. The rest is appointments.'},
+  {t:'"Just tired." Tough it out.',fx:()=>fx({mind:-8}),r:'It does not go away because you ignore it.'}],
+ lit:'Around 10% of new fathers develop depression, peaking 3–6 months after the birth, and it often goes unscreened. (Paulson & Bazemore, JAMA 2010;303:1961)'},
+{id:'peanut',age:.5,title:'Solid food',text:()=>`${N.k} is sitting up and eyeing your sandwich. Your own parents were told to keep peanuts away from kids until age three.`,
+ choices:[{t:'Wait until three, to be safe.',fx:()=>fx({flag:{peanutLate:1}}),r:'It feels cautious. The evidence says the opposite.'},
+  {t:'Thinned peanut butter in the oatmeal this week, then keep it in the rotation.',g:1,fx:()=>fx({mind:2}),r:()=>`${N.k} wears most of it. No reaction.`}],
+ lit:'The LEAP trial found early, regular peanut exposure cut peanut allergy by about 80% in high-risk infants (Du Toit et al., NEJM 2015;372:803). NIAID guidelines since 2017 recommend introducing peanut foods around 4–6 months.'},
+{id:'proof',age:.75,title:'Mobile',text:()=>`${N.k} is crawling, fast, and straight for the dog bowl, the outlet and the bookshelf, in that order.`,
+ choices:[{t:'Childproof this weekend: gates, outlet covers, anchor the furniture. ($250)',g:1,fx:()=>fx({money:-250,energy:-8,flag:{proofed:1}}),r:'You install eleven cabinet latches and can no longer open your own cabinets.'},
+  {t:`We will just keep a close eye on ${N.him}.`,r:'You will. Mostly.'}],
+ lit:'Unintentional injury is the leading cause of death in children after infancy; the AAP advises childproofing before a baby is mobile, including anchoring furniture and TVs. (AAP Committee on Injury, Violence and Poison Prevention, Pediatrics 2007;119:202)'},
+{id:'vax',age:1,title:'Twelve-month shots',text:()=>`Four vaccines today, including MMR. A dad from the playground says he is "spacing them out" on his own schedule.`,
+ choices:[{t:'On schedule. Hold the kid, get the sticker.',g:1,fx:()=>fx({bond:2}),r:()=>`${N.k} screams for forty seconds and forgives you in sixty.`},
+  {t:'Spread them out over the next year.',fx:()=>fx({flag:{vaxLate:1},money:-150}),r:'More visits, more needles, and a longer stretch unprotected.'}],
+ lit:'The CDC/ACIP schedule times each dose for when protection is needed and the immune response is best. Alternative spacing has no shown benefit and leaves children unprotected for longer. (CDC/ACIP immunization schedule; AAP Red Book)'},
+{id:'mload',age:1.3,title:'The invisible list',text:()=>`${N.w} is doing the daycare forms at 11 PM. "You help when I ask. I want to stop having to ask."`,
+ choices:[{t:'"Just tell me what you need me to do."',fx:()=>fx({marriage:-5}),r:'That was the wrong sentence.'},
+  {t:'Take over whole jobs for good: pediatrician, daycare, the birthday calendar.',g:1,fx:()=>fx({marriage:6,mind:-3,flag:{mload:1}}),r:()=>`You now know the pediatrician's fax number by heart. ${N.w} carries less from here on.`}],
+ lit:'The anticipating, planning and monitoring of family life falls mostly on mothers, even in couples who split chores evenly, and it wears on the relationship. (Daminger, Am Sociol Rev 2019;84:609)'},
+{id:'rest',age:1.6,title:'Table for three',text:()=>`First restaurant dinner in months. ${N.k} starts to melt down before the appetizers. Your phone is right there.`,
+ choices:[{t:'Phone and a cartoon. Peace.',fx:()=>fx({fun:15,flag:{habit:1}}),r:()=>`It works instantly. It works so well that it becomes how ${N.k} gets through every wait.`},
+  {t:'Crayons, a walk to look at the fish tank, and take turns eating.',g:1,fx:()=>fx({energy:-5,bond:3}),r:'You eat cold pasta. Nobody on the internet will ever know how good you were.'}],
+ lit:'AAP: under 18–24 months, no screen media other than video chat; ages 2–5, about an hour a day of quality programming watched together. Using a device as the go-to calming tool is linked to weaker emotional self-regulation. (AAP, Media and Young Minds, Pediatrics 2016;138:e20162591; Radesky et al., JAMA Pediatr 2023;177:62)'},
+{id:'tantrum',age:2.3,title:'Aisle 7',text:()=>`${N.k} wants the cereal with the cartoon bear. You said no. ${N.He} is now face down on the supermarket floor, screaming. People are looking.`,
+ choices:[{t:'Buy the cereal.',fx:()=>fx({fun:10}),r:()=>`The screaming stops. ${N.k} has learned exactly how to get cereal.`},
+  {t:'Stay calm, get low, name it: "You are mad. We are still not buying it."',g:1,fx:()=>fx({bond:4,mind:-3,skills:{social:.4}}),r:'It takes four long minutes. Then it is over, and the limit held.'},
+  {t:`Raise your voice and swat ${N.his} bottom.`,fx:()=>fx({bond:-7,love:-15,mind:-4}),r:()=>`${N.k} is quiet now, and watching you differently.`}],
+ lit:'The AAP recommends against spanking and harsh verbal discipline: both are linked to more aggression and worse behavior over time, not less. Calm, consistent limits work better. (Sege & Siegel, Effective Discipline, Pediatrics 2018;142:e20183112)'},
+{id:'potty',age:2.7,title:'Diapers',text:()=>`Daycare says the other kids in the room are in underwear. ${N.k} shows some interest and stays dry for a couple of hours at a time.`,
+ choices:[{t:'Follow the readiness signs. No pressure, lots of praise, expect accidents.',g:1,fx:()=>fx({flag:{pottyAge:2.95}}),r:'A few messy weeks and one ruined rug later, it clicks.'},
+  {t:'Three-day boot camp. Accidents get a time-out.',fx:()=>fx({bond:-4,love:-10,flag:{pottyAge:3.7}}),r:()=>`${N.k} starts hiding to go. It becomes a standoff that lasts most of a year.`}],
+ lit:'Most children show readiness between 18 and 30 months and train by about 3. A child-led approach works; punishment and pressure lead to refusal and withholding. (Brazelton, Pediatrics 1962;29:121; AAP toilet training guidance, Pediatrics 1999;103:1362)'},
+{id:'swim',age:3.5,title:'Pool season',text:()=>`Summer. The neighbors have a pool and an open invitation.`,
+ choices:[{t:'Swim lessons, and an adult within arm\'s reach every time. ($300)',g:1,fx:()=>fx({money:-300,flag:{swim:1},skills:{motor:.6}}),r:()=>`${N.k} learns to blow bubbles and float. You learn the life story of every other swim dad.`},
+  {t:'Floaties are fine. I will be right there on the deck.',r:'You will be right there. With your phone, and a burger.'}],
+ lit:'Drowning is the leading cause of death for children ages 1–4. The AAP recommends swim lessons for most children from age 1, four-sided pool fencing, and touch supervision. (Denny et al., Prevention of Drowning, Pediatrics 2019;143:e20190850)'},
+{id:'picky',age:4.5,title:'Beige food',text:()=>`${N.k} now eats four things, and all of them are beige. Dinner is a negotiation every night.`,
+ choices:[{t:'"Three more bites or no dessert."',fx:()=>fx({love:-6,mind:-3}),r:'Dinner becomes a contest of wills, and you are not winning.'},
+  {t:'Cook nuggets on the side every night. Whatever gets calories in.',fx:()=>fx({energy:-4,flag:{shortOrder:1}}),r:'You are now a short-order cook with one customer.'},
+  {t:'One family meal, something safe on the plate, no pressure, keep offering.',g:1,fx:()=>fx({bond:3,skills:{social:.3}}),r:()=>`It is slow. Around the twelfth time, ${N.k} eats a green bean and looks surprised.`}],
+ lit:'Pressuring children to eat lowers intake and liking (Galloway et al., Appetite 2006;46:318). It can take 8–15 neutral exposures before a child accepts a new food (Wardle et al., Appetite 2003;40:155). You decide what is served; the child decides how much.'},
+{id:'coach',age:5.5,title:'Coach needed',text:()=>`The rec league email: ${N.k}'s T-ball team has no coach. Practices are Tuesdays and Saturdays.`,
+ choices:[{t:'Volunteer. How hard can it be?',g:1,fx:()=>fx({bond:9,social:14,energy:-10,careerBar:-3,skills:{motor:1,social:.6}}),r:'Twelve five-year-olds, one of whom is picking dandelions in right field. Best season of your life.'},
+  {t:'Sign up, drop off, cheer on Saturdays.',fx:()=>fx({bond:2,skills:{motor:.5}}),r:'Somebody else\'s dad does it. You bring orange slices.'},
+  {t:'Skip sports this year.',r:()=>`More free evenings. ${N.k} spends them on the couch.`}],
+ lit:'Children 6–17 need 60 minutes or more of moderate-to-vigorous activity every day, and preschoolers should be active throughout the day. Active parents raise more active kids. (Physical Activity Guidelines for Americans, 2nd ed., HHS 2018)'},
+{id:'travelJob',age:6.2,cond:()=>S.employed,title:'The offer',text:()=>`Your boss slides a folder across the table. Bigger title, 15% raise, "some travel." You know what some means.`,
+ choices:[{t:'Take it.',fx:()=>{S.salary*=1.15;S.decayMul*=1.25;fx({careerBar:8});},r:'More money. The job now expects more of your hours to stay happy with you.'},
+  {t:'"Not this year."',fx:()=>fx({bond:3,marriage:2}),r:()=>`Your boss looks at you like you turned down free money. ${N.k} has a recital on Thursday.`}]},
+{id:'chores',age:6.6,title:'Pulling weight',text:()=>`${N.k} wants an allowance. You want the dishwasher unloaded.`,
+ choices:[{t:'Everyone who lives here has jobs. Set the table, feed the dog.',g:1,fx:()=>fx({flag:{chores:1},skills:{social:.5,cognitive:.4}}),r:'It is slower than doing it yourself for about two years. Then it pays off.'},
+  {t:`${N.He} is a kid. Let ${N.him} be a kid.`,fx:()=>fx({fun:5}),r:'The dishwasher remains your problem.'}],
+ lit:'Children who did chores in kindergarten had better self-competence, prosocial behavior and math scores by third grade. (White, DeBoer & Scharf, J Dev Behav Pediatr 2019;40:176)'},
+{id:'bully',age:7.5,title:'Quiet at dinner',text:()=>`${N.k} "lost" a jacket and has had a stomachache every school morning this week. Finally: a kid named Tyler, the bus, every day.`,
+ choices:[{t:'"Hit him back. That ends it."',fx:()=>fx({love:-4}),r:()=>`${N.k} gets a suspension. Tyler does not stop.`},
+  {t:'Listen to all of it, say it is not their fault, and bring in the teacher.',g:1,fx:()=>fx({bond:6,love:10,careerBar:-2}),r:'One uncomfortable meeting and a bus seat change. The stomachaches stop.'},
+  {t:'"Ignore him. Kids are mean. Toughen up."',fx:()=>fx({bond:-6,love:-12}),r:()=>`${N.k} stops telling you things.`}],
+ lit:'Bullied children have about twice the rate of stomachaches, headaches and sleep problems (Gini & Pozzoli, Pediatrics 2009;123:1059). What helps is an adult who listens, takes it seriously and works with the school.'},
+{id:'ai',age:9.05,tag:'Your career',title:()=>S.career==='blue'?'Everybody needs an electrician':'All-hands, 10 AM',
+ text:()=>S.career==='blue'?`Three data centers are going up across the county and every contractor is short-handed. The models can write code. They cannot pull wire. Your foreman offers a lead position and all the overtime you want.`
+   :`"${S.career==='tech'?'We are becoming an AI-native organization':'We are streamlining operations with AI agents'}." Your badge stops working at noon. Severance: ${money(S.salary*(S.career==='tech'?.35:.2))}.`,
+ choices:()=>S.career==='blue'?[{t:'Take the lead job. (+8% pay, and they expect more hours.)',fx:()=>{S.salary*=1.08;S.decayMul*=1.15;},r:'Good money while the boom lasts.'},
+    {t:`Keep my hours. ${N.k} is nine exactly once.`,fx:()=>fx({mind:6,bond:3}),r:'The foreman shrugs. The work is not going anywhere.'}]
+   :[{t:'Find the same job somewhere else. (Quicker. About 20% less pay. It could happen again.)',fx:()=>{S.money+=S.salary*(S.career==='tech'?.35:.2);layoff(6,.8,true);},r:'Go to your desk and job hunt. Savings are paying the bills until you land something.'},
+    {t:'Retrain into work the models cannot do yet. (Slower, $6k of courses. Stable.)',fx:()=>{S.money+=S.salary*(S.career==='tech'?.35:.2)-6000;layoff(11,.9,false);},r:'Go to your desk and start over. Savings are paying the bills until you land something.'}]},
+{id:'phone',age:10,title:'"Everyone has one"',text:()=>`${N.k} wants a smartphone for ${N.his} birthday. Apparently ${N.he} is the last kid in fourth grade without one.`,
+ choices:[{t:'Smartphone with a family media plan: no phones at dinner, and it charges in the kitchen overnight.',g:1,fx:()=>fx({flag:{phone:'limits'}}),r:()=>`${N.k} negotiates like a lawyer and then, mostly, sticks to the deal.`},
+  {t:`Sure. ${N.He} is responsible. No rules needed.`,fx:()=>fx({fun:10,flag:{phone:'free'}}),r:()=>`You do not see ${N.his} whole face again for some time. Bedtime drifts later.`},
+  {t:'A flip phone for calls. Smartphone in high school.',g:1,fx:()=>fx({bond:-3,fun:-8,flag:{phone:'none'}}),r:()=>`${N.k} is furious for a month. Then mostly forgets.`}],
+ lit:'For school-age kids the AAP recommends a written family media plan rather than a fixed number of hours: consistent limits, screen-free meals and bedrooms, and nothing that displaces sleep, activity or homework. (AAP, Pediatrics 2016;138:e20162592; US Surgeon General advisory on social media and youth mental health, 2023)'},
+{id:'talk',age:11,title:'Questions',text:()=>`${N.k} asks something at breakfast that makes you inhale your coffee. Health class has started, and so has the group chat.`,
+ choices:[{t:'Answer it honestly, at their level. Keep answering as it comes up.',g:1,fx:()=>fx({bond:5,love:6}),r:'It is short and only slightly mortifying. More importantly, they asked you.'},
+  {t:'"Ask your mother."',fx:()=>fx({load:6,bond:-2}),r:()=>`${N.w} handles it. You lose a little standing with both of them.`},
+  {t:'One formal Talk this weekend. Get it over with.',fx:()=>fx({mind:-3}),r:'Forty excruciating minutes. Neither of you brings it up again, which is the problem.'}],
+ lit:'Kids whose parents talk with them early and often about bodies and relationships delay sex and take fewer risks. Many small conversations beat one big one. (Breuner & Mattson, AAP, Pediatrics 2016;138:e20161348)'},
+{id:'sport',age:12,title:'Travel team',text:()=>`The club coach says ${N.k} has real talent, and that to stay competitive ${N.he} needs to play one sport year-round. $6,000 a season, tournaments most weekends.`,
+ choices:[{t:'All in. This could be a scholarship.',fx:()=>fx({flag:{travel:1},skills:{motor:2},fun:5}),r:'Your weekends now belong to hotel pools three states away.'},
+  {t:'Rec league and a couple of different sports. Keep it fun.',g:1,fx:()=>fx({fun:8,skills:{motor:1,social:.6}}),r:()=>`${N.k} plays three sports badly and one pretty well, and still likes all of them.`}],
+ lit:'Early single-sport specialization raises the risk of overuse injury and burnout; most elite athletes played several sports as kids. The AAP suggests delaying specialization until about 15–16. (Brenner, AAP, Pediatrics 2016;138:e20162148)'},
+{id:'teenSleep',age:13.1,title:'Zombie',text:()=>`First bell is 7:25. ${N.k} is asleep in first period, surly by dinner, and wide awake at midnight.`,
+ choices:[{t:'Phones out of the bedroom at night, a steady lights-out, and no sleeping until noon on weekends.',g:1,fx:()=>{if(S.flags.phone==='free')S.flags.phone='limits';fx({bond:-2,rest:15});},r:'Unpopular for two weeks. Then you notice your kid is back.'},
+  {t:`${N.He} is a teenager. This is normal.`,r:'It is common. It is also a chronic sleep debt.'},
+  {t:'Energy drinks before school.',fx:()=>fx({rest:-10}),r:'Now they are tired and jittery.'}],
+ lit:'Teens need 8–10 hours and puberty shifts their body clock about two hours later; most do not get enough. Short sleep is tied to worse mood, grades and crash risk. (AAP, School Start Times for Adolescents, Pediatrics 2014;134:642; Paruthi et al., J Clin Sleep Med 2016;12:785)'},
+{id:'mh',age:14.2,title:'The closed door',text:()=>`${N.k} quit the team, stopped seeing friends, and has barely left ${N.his} room in three weeks. "I am fine."`,
+ choices:[{t:'"It is a phase." Give it space.',fx:()=>fx({love:-10,bond:-4}),r:'Sometimes it is a phase. Three weeks of this is worth more than hoping.'},
+  {t:'Take the phone away until the attitude improves.',fx:()=>fx({love:-14,bond:-7}),r:'You have removed the one line they had to their friends.'},
+  {t:'Knock. Ask directly how bad it is, including about self-harm. Call the pediatrician.',g:1,fx:()=>fx({bond:8,love:14,money:-300,mind:-4}),r:'The hardest conversation you have had. The doctor screens for depression and sets up counseling. Asking did not plant the idea. It opened the door.'}],
+ lit:'Depression affects roughly 1 in 5 teens by age 18; the AAP and USPSTF recommend screening every adolescent 12 and up. Asking directly about suicide does not increase risk. (Zuckerbrot et al., GLAD-PC, Pediatrics 2018;141:e20174081)'},
+{id:'ai2',age:14.5,tag:'Your career',cond:()=>S.flags.sameField&&S.employed,title:'All-hands, again',text:()=>`Different company, same slide deck. The model that replaced your last job has been updated.`,
+ choices:[{t:'Pack the desk plant.',fx:()=>{S.money+=S.salary*.15;layoff(6,.88,false);},r:'Go to your desk and job hunt.'}]},
+{id:'vape',age:15.2,title:'Laundry day',text:()=>`A vape pen falls out of ${N.k}'s hoodie pocket. Mango.`,
+ choices:[{t:'Explode. Grounded until graduation.',fx:()=>fx({bond:-8,love:-12}),r:()=>`${N.k} gets much better at hiding things.`},
+  {t:'Wait until you are calm. Ask what is going on, state your expectations, agree on consequences.',g:1,fx:()=>fx({bond:5,love:4}),r:'They roll their eyes through the whole thing, and hear every word.'},
+  {t:'"I would rather you drink and vape at home where I can see it."',fx:()=>fx({fun:6,bond:1}),r:'It feels modern and safe. The data disagrees.'}],
+ lit:'Teens whose parents supplied alcohol drank more and had more alcohol-related harm, not less (Mattick et al., Lancet Public Health 2018;3:e64). Warmth plus clear expectations and monitoring is the style most consistently tied to lower substance use (Steinberg, J Res Adolesc 2001;11:1).'},
+{id:'drive',age:16,title:'Keys',text:()=>`${N.k} has a learner's permit and a look in ${N.his} eye.`,
+ choices:[{t:'Fifty-plus supervised hours with you, then a written agreement: no phone, no night driving, no friends in the car at first.',g:1,fx:()=>fx({bond:7,love:8,energy:-10,flag:{drive:'safe'}}),r:'You wear a groove in the passenger-side floor with your imaginary brake. Some of your best talks happen at 25 mph.'},
+  {t:'Driver\'s ed covered it. Hand over the keys.',fx:()=>fx({fun:8,flag:{drive:'keys'}}),r:'Freedom, for both of you.'},
+  {t:'No license until eighteen.',fx:()=>fx({bond:-6,fun:-10}),r:'You are the chauffeur for two more years, and they will learn at 18 with no supervision at all.'}],
+ lit:'Crashes are a leading cause of teen death; risk is highest in the first months of solo driving and climbs with teen passengers and night driving. The AAP recommends graduated licensing plus a parent-teen driving agreement. (Alderman & Johnston, The Teen Driver, Pediatrics 2018;142:e20182163)'},
+{id:'money',age:17.2,title:'The spreadsheet',text:()=>`Acceptance letters and their price tags are on the kitchen table. You have ${money(S.fund)} in the college fund. Four years will run about ${money(COLLEGE_COST)}.`,
+ choices:[{t:'"Do not worry about money. Pick your dream school."',fx:()=>fx({fun:6}),r:'A kind thing to say. The loans will be in their name.'},
+  {t:'Open the real numbers together: what you have, what loans cost, what each school nets out to.',g:1,fx:()=>fx({bond:4,skills:{cognitive:.5}}),r:()=>`${N.k} goes quiet, then starts asking sharp questions. That is an adult across the table.`}],
+ lit:'Money left in a 529 for 18 years roughly triples before you add a cent more. That is why the early contributions matter most.'},
+].sort((a,b)=>a.age-b.age);
+const FOLLOW=[
+ {id:'f_er',age:1.15,cond:()=>!S.flags.proofed,run:()=>{fx({money:-1800,mind:-8});toast(`🚑 ${N.k} pulled a drawer of knives onto the floor, then tried the stairs. ER visit: $1,800. ${N.He} is fine. You are not.`,'warn');}},
+ {id:'f_vax',age:1.9,cond:()=>S.flags.vaxLate,run:()=>{fx({careerBar:-8,mind:-6});toast(`😷 Measles case at the playgroup. ${N.k} is not fully vaccinated: 21 days of quarantine at home.`,'warn');}},
+ {id:'f_pb',age:3.1,cond:()=>S.flags.peanutLate,run:()=>{fx({money:-1400,mind:-8});toast(`🥜 First peanut butter cookie, first hives. ${N.k} has a peanut allergy. ER and EpiPens: $1,400.`,'warn');}},
+ {id:'f_swim',age:4.2,cond:()=>!S.flags.swim,run:()=>{fx({mind:-10});toast(`🏊 Pool party. You looked down at your phone for a moment. Another parent pulled ${N.k} out, coughing. ${N.He} is okay.`,'warn');}},
+ {id:'f_sport',age:13.6,cond:()=>S.flags.travel,run:()=>{fx({fun:-15,money:-900});toast(`🩹 ${N.k} has an overuse injury from year-round play. Six weeks off and physical therapy.`,'warn');}},
+ {id:'f_car',age:16.6,cond:()=>S.flags.drive==='keys',run:()=>{fx({money:-2600,mind:-6});toast(`🚗 ${N.k} rear-ended someone while changing the song. Nobody hurt. $2,600.`,'warn');}},
+ ...[2,3,5].map(y=>({id:'f_well'+y,age:y+.02,run:()=>{ if(ratio('language')<.8&&!S.flags.catchup)S.queue.push(EV.speech);
+    else toast(`🩺 Well-child visit: ${N.k} is ${Math.min(...Object.keys(S.kid.skills).map(ratio))>=.9?'right on track':'a little behind in places, but growing'}.${S.screenAvg>screenLimit(S.h/24)+.3?' The doctor asks about screen time.':''}`,'good'); }})),
+ {id:'f_well9',age:9.5,run:()=>{ if(S.screenAvg>screenLimit(9)+.5){fx({skills:{cognitive:-.5}});toast(`🏫 Teacher conference: ${N.k} has trouble staying on task. She asks how many hours of screens there are on a school night.`,'warn');} else toast(`🏫 Teacher conference: ${N.k} is "a pleasure to have in class."`,'good'); }},
+];
+
+for(const k in EV)EV[k].id='ev_'+k;
+
+/* =====================================================================
+   WORLD
+   ===================================================================== */
+const PI=Math.PI, WH=2.7, WT=.14;
+const canvas=$('#c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=.62;
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(72,1,.06,4000); camera.rotation.order='YXZ';
+scene.environment=new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(),.04).texture;
+const SU={top:{value:new THREE.Color()},bot:{value:new THREE.Color()},sunDir:{value:new THREE.Vector3(0,1,0)},sunCol:{value:new THREE.Color()}};
+const sky=new THREE.Mesh(new THREE.SphereGeometry(1800,32,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,toneMapped:false,uniforms:SU,
+  vertexShader:'varying vec3 d;void main(){d=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  fragmentShader:`uniform vec3 top,bot,sunDir,sunCol;varying vec3 d;void main(){vec3 n=normalize(d);float h=clamp(n.y,0.,1.);vec3 c=mix(bot,top,pow(h,.42));float s=max(dot(n,sunDir),0.);c+=sunCol*(pow(s,900.)*4.+pow(s,30.)*.22);gl_FragColor=vec4(c,1.);
+#include <colorspace_fragment>
+}`}));
+scene.add(sky);
+const SKY={dayT:new THREE.Color(0x2f73d0),dayB:new THREE.Color(0xa9cdf0),duskT:new THREE.Color(0x30406f),duskB:new THREE.Color(0xf29a5c),nightT:new THREE.Color(0x03050c),nightB:new THREE.Color(0x0b1222)};
+const sun=new THREE.DirectionalLight(0xffffff,4); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
+{const c=sun.shadow.camera;c.left=-14;c.right=14;c.top=14;c.bottom=-14;c.near=1;c.far=100;sun.shadow.bias=-.0004;sun.shadow.normalBias=.035;}
+sun.target.position.set(7,0,8.5); scene.add(sun,sun.target);
+const hemi=new THREE.HemisphereLight(0xcfe0ff,0x74644f,.5); scene.add(hemi);
+
+let seed=11; const rnd=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
+function tex(w,h,draw){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);
+  t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;}
+const woodT=tex(512,512,(x,w,h)=>{x.fillStyle='#7d5a36';x.fillRect(0,0,w,h);
+  for(let r=0;r<8;r++){let px=-rnd()*200;while(px<w){const len=170+rnd()*160;x.fillStyle=`hsl(${27+rnd()*7},${36+rnd()*12}%,${37+rnd()*13}%)`;x.fillRect(px,r*64,len-1,63);
+    for(let i=0;i<26;i++){x.strokeStyle=`rgba(${rnd()<.5?30:255},${rnd()<.5?18:230},10,${.03+rnd()*.06})`;x.beginPath();const y=r*64+rnd()*62;x.moveTo(px,y);x.bezierCurveTo(px+len*.3,y+rnd()*4-2,px+len*.6,y+rnd()*4-2,px+len,y);x.stroke();}
+    x.fillStyle='rgba(20,10,4,.5)';x.fillRect(px+len-1,r*64,1.5,64);px+=len;} x.fillStyle='rgba(20,10,4,.45)';x.fillRect(0,r*64+63,w,1.5);} });
+const tileT=tex(256,256,(x,w,h)=>{x.fillStyle='#b9b4aa';x.fillRect(0,0,w,h);for(let i=0;i<2;i++)for(let j=0;j<2;j++){x.fillStyle=`hsl(40,9%,${80+rnd()*5}%)`;x.fillRect(i*128+2,j*128+2,124,124);}
+  for(let i=0;i<900;i++){x.fillStyle=`rgba(90,80,60,${rnd()*.06})`;x.fillRect(rnd()*w,rnd()*h,2,2);} });
+const grassT=tex(256,256,(x,w,h)=>{x.fillStyle='#47702f';x.fillRect(0,0,w,h);for(let i=0;i<5000;i++){x.fillStyle=`hsl(${85+rnd()*30},${38+rnd()*25}%,${22+rnd()*22}%)`;x.fillRect(rnd()*w,rnd()*h,1.5,2+rnd()*4);} });
+const rugT=tex(256,256,(x,w,h)=>{x.fillStyle='#8c3f3a';x.fillRect(0,0,w,h);x.strokeStyle='#e3d3b0';x.lineWidth=10;x.strokeRect(16,16,w-32,h-32);x.lineWidth=3;x.strokeRect(36,36,w-72,h-72);
+  for(let i=0;i<6;i++)for(let j=0;j<6;j++){x.fillStyle=(i+j)%2?'#2f4a5f':'#c99a4a';x.save();x.translate(58+i*28,58+j*28);x.rotate(PI/4);x.fillRect(-7,-7,14,14);x.restore();}
+  for(let i=0;i<7000;i++){x.fillStyle=`rgba(${rnd()<.5?0:255},${rnd()<.5?0:255},200,.05)`;x.fillRect(rnd()*w,rnd()*h,1,3);} });
+const matT=tex(256,256,(x,w,h)=>{const c=['#f2c14e','#63b7af','#ee6c4d','#7aa5d2','#b8d86b','#c98bd8'];for(let i=0;i<4;i++)for(let j=0;j<4;j++){x.fillStyle=c[(i*3+j*2)%6];x.fillRect(i*64,j*64,63,63);} });
+const stoneT=tex(256,256,(x,w,h)=>{x.fillStyle='#2a2c30';x.fillRect(0,0,w,h);for(let i=0;i<2600;i++){const v=rnd();x.fillStyle=`rgba(${200*v+40},${200*v+40},${210*v+40},${.08+rnd()*.22})`;x.fillRect(rnd()*w,rnd()*h,1+rnd()*2,1+rnd()*2);} });
+const std=(color,rough=.8,metal=0,ex={})=>new THREE.MeshStandardMaterial({color,roughness:rough,metalness:metal,...ex});
+const MAT={
+  wall:std(0xe9e3d7,.93),trim:std(0xf5f2ec,.55),ceil:std(0xf3f0ea,.95),wood:std(0xffffff,.5,0,{map:woodT}),tile:std(0xffffff,.35,0,{map:tileT}),
+  grass:std(0xffffff,1,0,{map:grassT}),rug:std(0xffffff,1,0,{map:rugT}),mat:std(0xffffff,.9,0,{map:matT}),stone:std(0xffffff,.22,.05,{map:stoneT}),
+  oak:std(0xb08456,.55),walnut:std(0x5c3f2a,.5),white:std(0xf1efea,.45),cab:std(0x48606b,.5),dark:std(0x23252a,.55),steel:std(0xc8ccd1,.3,.92),black:std(0x101113,.3,.3),
+  sofa:std(0x60717d,.97),cushion:std(0x7b8d99,.97),linen:std(0xe9e3d8,.97),duvet:std(0x8fa3b5,.97),kduvet:std(0xf0b84a,.95),pillow:std(0xf6f4ef,.95),
+  green:std(0x3f7a3a,.8),leaf:std(0x2f6b2c,.9),bark:std(0x4d3a2a,.95),terra:std(0xb5633f,.8),fence:std(0x9c7a55,.85),concrete:std(0x9d9b96,.9),roof:std(0x3a3d42,.9),
+  red:std(0xc8443a,.55),blue:std(0x3d6fb0,.55),yellow:std(0xe9bd3a,.55),rubber:std(0x1b1c1e,.9),door:std(0x2f5d62,.5),brass:std(0xc9a55a,.3,.9),
+  glass:new THREE.MeshPhysicalMaterial({color:0xffffff,transparent:true,opacity:.13,roughness:.03,depthWrite:false,side:THREE.DoubleSide}),
+  shade:std(0xfff3dd,.9,0,{emissive:0xffc88a,emissiveIntensity:0}),screen:std(0x08090b,.2,0,{emissive:0x4a7fd0,emissiveIntensity:0}),
+  monitor:std(0x08090b,.2,0,{emissive:0x9db8d8,emissiveIntensity:.7}),
+};
+const colliders=[], lamps=[];
+const col=(x0,z0,x1,z1)=>colliders.push({x0,z0,x1,z1});
+function grp(x,z,ry=0){const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=ry;scene.add(g);return g;}
+function bx(g,w,h,d,mat,x=0,y=0,z=0,r=0){const m=new THREE.Mesh(r?new RoundedBoxGeometry(w,h,d,3,r):new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;g.add(m);return m;}
+function cy(g,rt,rb,h,mat,x=0,y=0,z=0,seg=18){const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat);m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;g.add(m);return m;}
+function ball(g,r,mat,x=0,y=0,z=0){const m=new THREE.Mesh(new THREE.SphereGeometry(r,18,14),mat);m.position.set(x,y,z);m.castShadow=true;g.add(m);return m;}
+function floor(x0,z0,x1,z1,mat,size,y=0){const g=new THREE.PlaneGeometry(x1-x0,z1-z0),uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*(x1-x0)/size,uv.getY(i)*(z1-z0)/size);
+  const m=new THREE.Mesh(g,mat);m.rotation.x=-PI/2;m.position.set((x0+x1)/2,y,(z0+z1)/2);m.receiveShadow=true;scene.add(m);return m;}
+function wall(ax,c,a,b,ops=[]){
+  const X=ax==='x';
+  const seg=(s,e,y0,y1)=>{if(e-s<.01||y1-y0<.01)return;const m=new THREE.Mesh(new THREE.BoxGeometry(X?e-s:WT,y1-y0,X?WT:e-s),MAT.wall);
+    m.position.set(X?(s+e)/2:c,(y0+y1)/2,X?c:(s+e)/2);m.castShadow=m.receiveShadow=true;scene.add(m);
+    if(y0<1.5){X?col(s,c-WT/2,e,c+WT/2):col(c-WT/2,s,c+WT/2,e);} };
+  const pane=o=>{const len=o.b-o.a,h=o.h-o.s,y=o.s+h/2,mid=(o.a+o.b)/2;
+    const g=new THREE.Mesh(new THREE.PlaneGeometry(len,h),MAT.glass);g.position.set(X?mid:c,y,X?c:mid);if(!X)g.rotation.y=PI/2;scene.add(g);
+    const fr=(w,hh,dx,dy)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(X?w:WT+.06,hh,X?WT+.06:w),MAT.trim);m.position.set(X?mid+dx:c,y+dy,X?c:mid+dx);m.castShadow=true;scene.add(m);};
+    fr(len+.12,.07,0,h/2);fr(len+.16,.08,0,-h/2);fr(.07,h,-len/2,0);fr(.07,h,len/2,0);fr(.04,h,0,0);};
+  let p=a;for(const o of [...ops].sort((m,n)=>m.a-n.a)){o.h=o.h??2.05;o.s=o.s||0;seg(p,o.a,0,WH);seg(o.a,o.b,o.h,WH);if(o.s){seg(o.a,o.b,0,o.s);pane(o);}p=o.b;} seg(p,b,0,WH);
+}
+function lamp(x,y,z,p,fixture=true){const l=new THREE.PointLight(0xffd6a0,0,11,1.7);l.position.set(x,y,z);l.userData.p=p;scene.add(l);lamps.push(l);
+  if(fixture){const m=new THREE.Mesh(new THREE.CylinderGeometry(.2,.17,.07,20),MAT.shade);m.position.set(x,WH-.04,z);scene.add(m);} }
+function tableLamp(g,x,y,z){cy(g,.05,.07,.26,MAT.brass,x,y+.13,z);const s=cy(g,.1,.15,.2,MAT.shade,x,y+.36,z);s.castShadow=false;}
+
+const W={}; // things that change with age or career
+function build(){
+  // ground, floors, shell
+  floor(-40,-30,54,50,MAT.grass,3,-.02);
+  floor(0,0,14,4.2,MAT.wood,2.4);floor(0,4.2,8,10,MAT.wood,2.4);floor(8,4.2,14,10,MAT.tile,1.2);
+  const g0=grp(0,0);
+  bx(g0,14.5,.14,10.5,MAT.ceil,7,WH+.07,5); bx(g0,15,.1,11,MAT.roof,7,WH+.2,5);
+  bx(g0,4.2,.05,2.6,MAT.concrete,3.4,.005,11.3); bx(g0,14.3,.3,10.3,MAT.concrete,7,-.17,5);
+  wall('x',0,0,14,[{a:1.2,b:3.2,s:.9,h:2.1},{a:5.9,b:7.9,s:.9,h:2.1},{a:10.6,b:12.6,s:.9,h:2.1}]);
+  wall('x',10,0,14,[{a:2.2,b:4.6,h:2.15},{a:5.6,b:7.8,s:.5,h:2.2},{a:9.6,b:12.4,s:.9,h:2.1}]);
+  wall('z',0,0,10,[{a:1.2,b:3,s:.9,h:2.1},{a:5.6,b:8.4,s:.6,h:2.2}]);
+  wall('z',14,0,10,[{a:1.2,b:3,s:.9,h:2.1}]);
+  wall('x',4.2,0,14,[{a:3,b:3.9},{a:6.4,b:7.3},{a:10.2,b:11.1}]);
+  wall('z',4.6,0,4.2);wall('z',9.2,0,4.2);
+  lamp(2.3,2.25,2.1,7);lamp(6.9,2.25,2.1,7);lamp(11.6,2.25,2.1,8);lamp(4.6,2.25,7,13);lamp(11,2.25,6,11);lamp(10.4,1.75,8.3,6,false);
+
+  // ---- master bedroom
+  let g=grp(1.2,2.1);
+  bx(g,2.15,.3,1.85,MAT.walnut,0,.15,0);bx(g,2.05,.26,1.75,MAT.linen,0,.43,0,.06);bx(g,1.45,.14,1.8,MAT.duvet,.3,.58,0,.06);
+  bx(g,.5,.14,.68,MAT.pillow,-.72,.6,-.42,.06);bx(g,.5,.14,.68,MAT.pillow,-.72,.6,.42,.06);bx(g,.08,1.05,1.9,MAT.walnut,-1.08,.52,0);
+  col(.07,1.15,2.3,3.05);
+  for(const z of [.72,3.48]){bx(g0,.45,.5,.45,MAT.walnut,.34,.25,z);tableLamp(g0,.34,.5,z);col(.1,z-.23,.57,z+.23);}
+  bx(g0,.5,.95,1.4,MAT.oak,4.25,.475,1.3);col(3.98,.6,4.53,2);bx(g0,.06,.7,.9,MAT.steel,4.5,1.6,1.3);
+  floor(1.8,.9,3.9,3.4,std(0xcdbfa8,1),1,.006);
+
+  // ---- kid's room
+  W.crib=grp(8.72,1.0);
+  bx(W.crib,.78,.1,1.38,MAT.linen,0,.47,0,.03);
+  for(const [x,z] of [[-.39,-.69],[.39,-.69],[-.39,.69],[.39,.69]])bx(W.crib,.05,.95,.05,MAT.white,x,.475,z);
+  for(const x of [-.39,.39]){bx(W.crib,.04,.05,1.38,MAT.white,x,.92,0);bx(W.crib,.04,.05,1.38,MAT.white,x,.36,0);for(let i=0;i<9;i++)bx(W.crib,.022,.56,.022,MAT.white,x,.64,-.6+i*.15);}
+  for(const z of [-.69,.69])bx(W.crib,.78,.6,.03,MAT.white,0,.64,z);
+  W.kbed=grp(8.68,1.12);
+  bx(W.kbed,.98,.28,1.98,MAT.oak,0,.14,0);bx(W.kbed,.92,.2,1.9,MAT.linen,0,.38,0,.05);bx(W.kbed,.96,.12,1.3,MAT.kduvet,0,.5,.3,.05);bx(W.kbed,.6,.12,.4,MAT.pillow,0,.52,-.7,.05);bx(W.kbed,1,.8,.06,MAT.oak,0,.4,-1);
+  col(8.2,.1,9.13,2.12);
+  W.changeT=grp(4.97,1.25);
+  bx(W.changeT,.56,.88,1.0,MAT.white,0,.44,0);bx(W.changeT,.5,.06,.8,MAT.kduvet,0,.91,0,.025);bx(W.changeT,.5,.03,.94,MAT.oak,0,.6,0);
+  W.kdesk=grp(4.97,1.25);
+  bx(W.kdesk,.6,.04,1.3,MAT.oak,0,.7,0);for(const z of [-.6,.6])bx(W.kdesk,.56,.7,.04,MAT.white,0,.35,z);tableLamp(W.kdesk,-.1,.72,-.45);
+  bx(W.kdesk,.22,.02,.3,MAT.white,.05,.73,.1);bx(W.kdesk,.4,.04,.4,MAT.blue,.53,.44,0);bx(W.kdesk,.04,.45,.4,MAT.blue,.73,.66,0);for(const [x,z] of [[.36,-.17],[.7,-.17],[.36,.17],[.7,.17]])bx(W.kdesk,.03,.44,.03,MAT.steel,x,.22,z);
+  col(4.67,.6,5.26,1.9);
+  g=grp(7.78,4.0);bx(g,.75,1.3,.28,MAT.white,0,.65,0);
+  const bc=[0xc8443a,0x3d6fb0,0xe9bd3a,0x4f9d69,0xe08a3c,0x7e57a8,0x2d8a99];
+  for(let s=0;s<3;s++){let x=-.32;while(x<.3){const w=.03+rnd()*.035,h=.2+rnd()*.1;bx(g,w,h,.17,std(bc[Math.floor(rnd()*7)],.7),x+w/2,.12+s*.4+h/2,-.08);x+=w+.004;}bx(g,.7,.02,.24,MAT.oak,0,.1+s*.4,-.03);}
+  col(7.4,3.85,8.16,4.13);
+  g=grp(8.62,3.45,-PI/2);bx(g,.8,.4,.75,MAT.cushion,0,.22,0,.08);bx(g,.8,.55,.2,MAT.cushion,0,.62,-.3,.08);bx(g,.16,.3,.75,MAT.cushion,-.36,.52,0,.06);bx(g,.16,.3,.75,MAT.cushion,.36,.52,0,.06);
+  col(8.25,3.05,9.13,3.85);
+  const rr=new THREE.Mesh(new THREE.CircleGeometry(1.05,40),std(0x9cc3d5,1));rr.rotation.x=-PI/2;rr.position.set(6.7,.007,2.2);rr.receiveShadow=true;scene.add(rr);
+  bx(g0,.5,.4,.8,MAT.red,5.0,.2,3.4,.04);col(4.67,2.98,5.27,3.82);
+  for(const [x,y,z,c] of [[6.5,.06,2.5,MAT.red],[6.75,.06,2.05,MAT.blue],[6.3,.06,1.9,MAT.yellow],[6.9,.18,2.6,MAT.green]])bx(g0,.12,.12,.12,c,x,y,z);
+
+  // ---- office / garage
+  W.office=grp(9.62,1.6);
+  bx(W.office,.72,.04,1.7,MAT.oak,0,.74,0);for(const z of [-.8,.8])bx(W.office,.68,.74,.04,MAT.dark,0,.37,z);
+  for(const z of [-.36,.36]){bx(W.office,.03,.36,.62,MAT.black,-.2,1.06,z);const s=bx(W.office,.005,.32,.58,MAT.monitor,-.182,1.06,z);s.castShadow=false;cy(W.office,.02,.02,.14,MAT.black,-.22,.83,z);bx(W.office,.16,.015,.22,MAT.black,-.2,.765,z);}
+  bx(W.office,.14,.02,.42,MAT.dark,.12,.77,0);tableLamp(W.office,-.2,.76,-.72);
+  W.bench=grp(9.62,1.6);
+  bx(W.bench,.72,.07,1.8,MAT.oak,0,.9,0);for(const [x,z] of [[-.3,-.84],[.3,-.84],[-.3,.84],[.3,.84]])bx(W.bench,.08,.9,.08,MAT.oak,x,.45,z);bx(W.bench,.64,.03,1.7,MAT.oak,0,.25,0);
+  bx(W.bench,.02,.8,1.5,std(0xb99b6b,.9),-.33,1.55,0);for(let i=0;i<6;i++)bx(W.bench,.03,.22+rnd()*.2,.05,i%2?MAT.steel:MAT.red,-.31,1.55+rnd()*.2,-.6+i*.24);
+  bx(W.bench,.3,.2,.45,MAT.red,.05,1.04,.5,.02);bx(W.bench,.18,.14,.16,MAT.steel,.2,1.0,-.6);cy(W.bench,.07,.07,.1,MAT.yellow,0,.98,-.2);
+  col(9.27,.72,10,2.48);
+  const chair=grp(10.28,1.6,-PI/2);bx(chair,.48,.08,.46,MAT.dark,0,.48,0,.03);bx(chair,.46,.5,.07,MAT.dark,0,.8,-.21,.03);cy(chair,.03,.03,.4,MAT.steel,0,.24,0);cy(chair,.26,.26,.04,MAT.black,0,.03,0);W.chair=chair;
+  g=grp(13.0,2.6);
+  bx(g,.9,.02,2.0,MAT.rubber,-.25,.012,0);bx(g,.3,.08,1.2,MAT.black,-.25,.46,0,.03);for(const z of [-.45,.45])bx(g,.26,.42,.06,MAT.steel,-.25,.21,z);
+  for(const x of [-.75,.25])bx(g,.05,1.1,.05,MAT.steel,x,.55,-.75);
+  cy(g,.016,.016,1.7,MAT.steel,-.25,1.08,-.75).rotation.z=PI/2;for(const x of [-1,1]){cy(g,.2,.2,.05,MAT.black,-.25+x*.72,1.08,-.75).rotation.z=PI/2;}
+  bx(g,.4,.5,1.5,MAT.dark,.68,.25,.2);for(let i=0;i<4;i++){const z=-.35+i*.36;cy(g,.02,.02,.26,MAT.steel,.68,.58,z).rotation.x=PI/2;for(const s of [-1,1])cy(g,.07+i*.008,.07+i*.008,.07,MAT.black,.68,.58,z+s*.12).rotation.x=PI/2;}
+  ball(g,.13,MAT.black,.2,.13,.85);col(13.45,1.9,13.93,3.6);col(12.55,1.75,12.95,1.95);
+
+  // ---- living room
+  g=grp(5.1,4.52);bx(g,1.7,.42,.42,MAT.walnut,0,.26,0);bx(g,1.36,.78,.05,MAT.black,0,1.28,-.2);W.tv=bx(g,1.3,.72,.01,MAT.screen,0,1.28,-.17);W.tv.castShadow=false;
+  W.tvLight=new THREE.PointLight(0x7fa8ff,0,5,2);W.tvLight.position.set(5.1,1.2,5.0);scene.add(W.tvLight);
+  col(4.25,4.27,5.95,4.75);
+  g=grp(5.1,7.55);bx(g,2.3,.4,.95,MAT.sofa,0,.24,0,.08);bx(g,2.3,.55,.24,MAT.sofa,0,.62,.36,.08);for(const x of [-1.05,1.05])bx(g,.22,.3,.95,MAT.sofa,x,.55,0,.07);
+  for(const x of [-.5,.5])bx(g,.92,.14,.66,MAT.cushion,x,.48,-.1,.05);bx(g,.4,.4,.12,MAT.kduvet,-.75,.68,.18,.05).rotation.x=.25;
+  col(3.92,7.08,6.28,8.05);
+  bx(g0,1.0,.04,.55,MAT.walnut,5.1,.4,6.0);for(const [x,z] of [[4.65,5.78],[5.55,5.78],[4.65,6.22],[5.55,6.22]])bx(g0,.04,.4,.04,MAT.dark,x,.2,z);col(4.6,5.73,5.6,6.27);
+  floor(3.5,5.2,6.7,7.2,MAT.rug,3.2,.006).material=MAT.rug; {const m=scene.children[scene.children.length-1];const uv=m.geometry.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*3.2/3.2,uv.getY(i)*3.2/2);}
+  W.mat=bx(g0,1.9,.03,1.9,MAT.mat,1.7,.016,6.5);
+  W.toys=grp(1.7,6.5);for(const [x,z,c] of [[.6,.5,MAT.red],[.72,.38,MAT.blue],[.5,.62,MAT.yellow],[-.6,.6,MAT.green]])bx(W.toys,.1,.1,.1,c,x,.08,z);ball(W.toys,.11,MAT.red,-.65,.14,-.5);
+  for(let i=0;i<4;i++){const t=new THREE.Mesh(new THREE.TorusGeometry(.1-i*.018,.025,8,20),[MAT.red,MAT.yellow,MAT.green,MAT.blue][i]);t.rotation.x=PI/2;t.position.set(.55,.06+i*.05,-.55);t.castShadow=true;W.toys.add(t);}
+  g=grp(.35,9.45);cy(g,.2,.15,.36,MAT.terra,0,.18,0);for(let i=0;i<7;i++){const l=new THREE.Mesh(new THREE.IcosahedronGeometry(.2+rnd()*.12,0),MAT.leaf);l.position.set(rnd()*.4-.2,.6+rnd()*.7,rnd()*.4-.2);l.castShadow=true;g.add(l);}col(.1,9.2,.6,9.7);
+  g=grp(7.4,9.45);cy(g,.16,.16,.03,MAT.dark,0,.015,0);cy(g,.015,.015,1.5,MAT.dark,0,.75,0);cy(g,.14,.2,.26,MAT.shade,0,1.58,0).castShadow=false;lamp(7.4,1.5,9.3,5,false);
+  g=grp(.25,4.95);bx(g,.3,1.8,1.1,MAT.walnut,0,.9,0);for(let s=0;s<4;s++){let z=-.48;while(z<.45){const w=.03+rnd()*.04,h=.2+rnd()*.12;bx(g,.2,h,w,std(bc[Math.floor(rnd()*7)],.75),.04,.12+s*.43+h/2,z+w/2);z+=w+.004;}}col(.07,4.38,.42,5.52);
+  for(const [x,y,z,w,h,c] of [[2.2,1.55,4.28,.7,.5,0x6a8caf],[8.6,1.6,4.28,.5,.65,0xd8a657],[12.0,1.6,9.92,.01,.01,0]]){const f=new THREE.Mesh(new THREE.PlaneGeometry(w,h),std(c,.8));f.position.set(x,y,z);scene.add(f);bx(g0,w+.06,h+.06,.02,MAT.dark,x,y,z-.012);}
+
+  // ---- kitchen
+  g=grp(12.3,4.6);bx(g,2.0,.88,.62,MAT.cab,0,.44,0);bx(g,2.04,.04,.66,MAT.stone,0,.9,0);bx(g,2.0,.7,.34,MAT.cab,0,1.85,-.14);
+  bx(g,.56,.02,.4,MAT.steel,-.1,.915,.02);cy(g,.014,.014,.26,MAT.steel,-.1,1.04,-.2);bx(g,.02,.02,.14,MAT.steel,-.1,1.16,-.14);
+  for(let i=0;i<4;i++)bx(g,.46,.76,.015,std(0x52707c,.45),-.75+i*.5,.44,.315);
+  col(11.3,4.27,13.3,4.92);
+  bx(g0,.7,1.82,.7,MAT.steel,13.6,.91,4.63);bx(g0,.015,.9,.03,MAT.black,13.3,1.2,4.98);col(13.25,4.27,13.93,5.0);
+  g=grp(13.63,5.95);bx(g,.6,.88,1.9,MAT.cab,0,.44,0);bx(g,.64,.04,1.94,MAT.stone,0,.9,0);bx(g,.56,.012,.72,MAT.black,0,.925,.1);
+  for(const [x,z] of [[-.13,-.08],[.13,-.08],[-.13,.28],[.13,.28]])cy(g,.085,.085,.006,MAT.dark,x,.934,z);bx(g,.5,.14,.74,MAT.steel,.03,1.85,.1);
+  cy(g,.1,.08,.14,MAT.red,-.05,.99,-.6);col(13.32,5.0,13.93,6.9);
+  bx(g0,.06,2.05,1.0,MAT.door,13.92,1.025,7.8);ball(g0,.035,MAT.brass,13.87,1.0,8.2);
+  g=grp(10.4,8.3);bx(g,1.75,.05,.95,MAT.oak,0,.75,0);for(const [x,z] of [[-.78,-.38],[.78,-.38],[-.78,.38],[.78,.38]])bx(g,.06,.73,.06,MAT.oak,x,.365,z);
+  for(const [x,z,r] of [[-.4,-.72,0],[.4,-.72,0],[-.4,.72,PI],[.4,.72,PI]]){const c=new THREE.Group();c.position.set(x,0,z);c.rotation.y=r;g.add(c);bx(c,.42,.04,.42,MAT.walnut,0,.46,0);bx(c,.42,.46,.04,MAT.walnut,0,.72,-.2);for(const [a,b] of [[-.18,-.18],[.18,-.18],[-.18,.18],[.18,.18]])bx(c,.035,.45,.035,MAT.walnut,a,.225,b);}
+  cy(g,.01,.01,.75,MAT.dark,0,2.3,0);cy(g,.1,.22,.2,MAT.shade,0,1.86,0).castShadow=false;cy(g,.12,.09,.1,MAT.terra,.1,.83,0);ball(g,.09,MAT.leaf,.1,.94,0);
+  col(9.5,7.8,11.3,8.8);
+  W.hchair=grp(9.15,8.3,PI/2);bx(W.hchair,.36,.04,.34,MAT.white,0,.6,0);bx(W.hchair,.36,.36,.03,MAT.white,0,.8,-.16);bx(W.hchair,.44,.025,.26,MAT.white,0,.78,.24);
+  for(const [x,z] of [[-.2,-.2],[.2,-.2],[-.2,.2],[.2,.2]]){const l=bx(W.hchair,.03,.62,.03,MAT.oak,x,.3,z);l.rotation.z=x<0?.12:-.12;}
+
+  // ---- yard
+  for(const [x0,z0,x1,z1] of [[-1.6,10,-1.5,19.2],[15.5,10,15.6,19.2],[-1.6,19.1,15.6,19.2],[-1.6,10,0,10.08],[14,10,15.6,10.08]]){bx(g0,x1-x0,1.7,z1-z0,MAT.fence,(x0+x1)/2,.85,(z0+z1)/2);col(x0-.1,z0-.1,x1+.1,z1+.1);}
+  g=grp(11.8,15.8);cy(g,.2,.3,2.6,MAT.bark,0,1.3,0,10);for(const [x,y,z,r] of [[0,3.6,0,1.5],[1,3.1,.4,1.1],[-1,3.2,-.3,1.15],[.2,3.3,-1,1.05],[-.3,4.3,.4,1.0]]){const l=new THREE.Mesh(new THREE.IcosahedronGeometry(r,1),MAT.leaf);l.position.set(x,y,z);l.castShadow=true;g.add(l);}col(11.5,15.5,12.1,16.1);
+  g=grp(3,16.2);for(const x of [-1.2,1.2])for(const z of [-.6,.6]){const p=cy(g,.035,.035,2.3,MAT.steel,x,1.1,z*.9);p.rotation.x=z<0?.26:-.26;}
+  cy(g,.035,.035,2.5,MAT.steel,0,2.18,0).rotation.z=PI/2;for(const x of [-.5,.5]){for(const s of [-.18,.18])cy(g,.008,.008,1.6,MAT.dark,x+s,1.38,0);bx(g,.44,.03,.18,MAT.red,x,.58,0);}
+  col(1.6,15.6,1.95,16.8);col(4.05,15.6,4.4,16.8);
+  W.ball=ball(g0,.11,MAT.white,8.4,.11,14.9);
+  g=grp(8,17.9);for(const x of [-1,1])cy(g,.03,.03,1.2,MAT.white,x,.6,0);cy(g,.03,.03,2.06,MAT.white,0,1.2,0).rotation.z=PI/2;
+  g=grp(11.2,11.2);bx(g,1.0,.05,.6,MAT.dark,0,.5,0);cy(g,.3,.26,.4,MAT.black,0,.78,0);cy(g,.03,.03,.5,MAT.steel,0,.25,0);col(10.7,10.9,11.7,11.5);
+}
+build();
+
+/* ---------- people ---------- */
+function person(o){
+  const root=new THREE.Group(),body=new THREE.Group();root.add(body);scene.add(root);
+  const skin=std(o.skin,.62),shirt=std(o.shirt,.85),pants=std(o.pants,.9),hair=std(o.hair,.75),shoe=std(0x2a2a2e,.7);
+  const shoes=[],mk=(geo,mat,x,y,z,par=body)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;par.add(m);return m;};
+  mk(new THREE.CapsuleGeometry(.155,.3,6,14),shirt,0,1.13,0).scale.set(1,1,.72);
+  mk(new THREE.CapsuleGeometry(.15,.06,6,14),pants,0,.9,0).scale.set(1,1,.75);
+  mk(new THREE.CylinderGeometry(.045,.05,.08,10),skin,0,1.42,0);
+  const head=new THREE.Group();head.position.set(0,1.5,0);body.add(head);
+  mk(new THREE.SphereGeometry(.115,22,18),skin,0,.08,0,head);
+  mk(new THREE.SphereGeometry(.123,22,14,0,PI*2,0,PI*.52),hair,0,.085,-.01,head);
+  const long=mk(new THREE.CapsuleGeometry(.1,.2,4,10),hair,0,-.02,-.065,head);long.scale.set(1.05,1,.6);
+  for(const x of [-.042,.042])mk(new THREE.SphereGeometry(.013,8,8),shoe,x,.09,.106,head);
+  mk(new THREE.SphereGeometry(.016,8,8),skin,0,.06,.116,head);
+  const limb=(x,y,r,len,mat,end)=>{const g=new THREE.Group();g.position.set(x,y,0);body.add(g);mk(new THREE.CapsuleGeometry(r,len,4,10),mat,0,-len/2-r*.4,0,g);
+    if(end==='hand')mk(new THREE.SphereGeometry(r*1.05,10,8),skin,0,-len-r*1.4,0,g);else shoes.push(mk(new THREE.BoxGeometry(r*1.9,.07,.22),shoe,0,-len-r*1.2,.05,g));return g;};
+  const P={root,body,head,long,shoes,shirt,pants,hair,legL:limb(-.085,.86,.068,.68,pants),legR:limb(.085,.86,.068,.68,pants),armL:limb(-.225,1.34,.048,.5,shirt,'hand'),armR:limb(.225,1.34,.048,.5,shirt,'hand'),
+    pose:'',cur:'',path:[],phase:0,wt:0};
+  const sm=new THREE.SpriteMaterial({transparent:true,toneMapped:false,depthWrite:false});P.bub=new THREE.Sprite(sm);P.bub.scale.setScalar(.3);P.bub.visible=false;scene.add(P.bub);P.bubE='';
+  setPose(P,'stand');return P;
+}
+function setPose(P,pose){ if(P.pose===pose)return;P.pose=pose;const b=P.body;b.rotation.x=0;b.position.set(0,0,0);
+  P.legL.rotation.x=P.legR.rotation.x=P.armL.rotation.x=P.armR.rotation.x=0;
+  if(pose==='sit'){b.position.y=-.8;P.legL.rotation.x=P.legR.rotation.x=-PI/2;P.armL.rotation.x=P.armR.rotation.x=-.55;}
+  else if(pose==='lie'){b.rotation.x=-PI/2;b.position.set(0,.11,.85);} }
+const emoT={};
+function emojiTex(e){ if(emoT[e])return emoT[e];const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');
+  x.fillStyle='rgba(16,19,24,.78)';x.beginPath();x.arc(64,64,60,0,7);x.fill();x.strokeStyle='rgba(255,255,255,.5)';x.lineWidth=3;x.stroke();
+  x.font='68px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(e,64,70);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return emoT[e]=t; }
+function bubble(P,e,h){ if(!e||!P.root.visible){P.bub.visible=false;return;} if(P.bubE!==e){P.bubE=e;P.bub.material.map=emojiTex(e);P.bub.material.needsUpdate=true;}
+  P.bub.visible=true;P.bub.position.set(P.root.position.x,P.root.position.y+h,P.root.position.z); }
+const mom=person({skin:0xd7a17e,shirt:0x9a6a8c,pants:0x2f3a4f,hair:0x3a2618});
+const kid=person({skin:0xe2ae88,shirt:0xf2f0ea,pants:0xf2f0ea,hair:0x4b3120});
+mom.root.visible=kid.root.visible=false;
+
+const SPOTS={
+  mat:{x:1.7,z:6.5,pose:'floor',face:PI/2},matM:{x:2.0,z:7.6,pose:'sit',face:PI},
+  highchair:{x:9.15,z:8.3,pose:'sit',y:.64,face:PI/2},chairK:{x:10.0,z:9.02,pose:'sit',y:.5,face:PI},chairM:{x:10.8,z:9.02,pose:'sit',y:.5,face:PI},tableM:{x:9.2,z:7.5,face:0},
+  yardK:{x:7.8,z:14.6,face:PI},armchair:{x:8.6,z:3.45,pose:'sit',y:.44,face:-PI/2},armM:{x:7.8,z:3.0,face:PI/2},
+  changeK:{x:4.97,z:1.25,pose:'lie',y:.94,face:0},changeM:{x:5.6,z:1.25,face:-PI/2},deskK:{x:5.5,z:1.25,pose:'sit',y:.48,face:-PI/2},deskM:{x:5.9,z:2.0,face:-PI/2},
+  bedK:{x:8.7,z:1.02,pose:'lie',y:.52,face:0},bedKM:{x:7.95,z:1.0,face:PI/2},tvK:{x:5.1,z:5.32,pose:'sit',face:PI},rugK:{x:6.7,z:2.3,pose:'sit',face:0},
+  teen:{x:8.25,z:1.5,pose:'sit',y:.5,face:-PI/2},couchK:{x:5.7,z:7.3,pose:'lie',y:.72,face:PI/2},couchM:{x:5.6,z:7.42,pose:'sit',y:.5,face:PI},
+  bedM:{x:1.3,z:2.55,pose:'lie',y:.64,face:PI/2},sinkM:{x:12.7,z:5.35,face:PI},door:{x:13.2,z:7.8},
+};
+const DOORS={bed:{in:{x:3.45,z:3.55},out:{x:3.45,z:4.9}},kid:{in:{x:6.85,z:3.55},out:{x:6.85,z:4.9}},office:{in:{x:10.65,z:3.55},out:{x:10.65,z:4.9}},yard:{in:{x:3.4,z:10.9},out:{x:3.4,z:9.2}}};
+const WANDER=[[2.6,5.3],[3.2,8.9],[7.2,5.6],[7.4,8.8],[9,6],[11.6,6.4],[12.3,9.2],[8.6,9.3],[1.7,6.5]];
+const roomOf=(x,z)=>z<4.2?(x<4.6?'bed':x<9.2?'kid':'office'):z>10?'yard':'main';
+function route(from,sp){const ra=roomOf(from.x,from.z),rb=roomOf(sp.x,sp.z),p=[];if(ra!==rb){if(ra!=='main')p.push(DOORS[ra].in,DOORS[ra].out);if(rb!=='main')p.push(DOORS[rb].out,DOORS[rb].in);}p.push(sp);return p;}
+function updNPC(P,st,dt,speed,snap,age){
+  const name=st.spot; if(name==='gone'){P.root.visible=false;P.cur='gone';return;}
+  if(name==='arms'){P.cur='arms';P.root.visible=true;setPose(P,'lie');P.path.length=0;const fxx=-Math.sin(yaw),fz=-Math.cos(yaw);
+    P.root.position.set(pos.x+fxx*.42,.98,pos.z+fz*.42);P.root.rotation.y=yaw+PI/2;return;}
+  if(P.cur==='gone'||!P.root.visible){P.root.visible=true;P.root.position.set(SPOTS.door.x,0,SPOTS.door.z);}
+  if(name==='wander'){ if(P.cur!=='wander'){P.cur='wander';P.wt=0;setPose(P,'stand');P.root.position.y=0;}
+    st.arrived=true; if(S.kid.busy){P.path.length=0;} else if(!P.path.length){P.wt-=dt;if(P.wt<=0){const w=WANDER[Math.floor(Math.random()*WANDER.length)];P.path=[{x:w[0],z:w[1]}];P.wt=1.5+Math.random()*4;}} }
+  else if(P.cur!==name){ const sp=SPOTS[name];P.cur=name;P.path=route(P.root.position,sp);setPose(P,'stand');P.root.position.y=0;
+    if(snap){P.root.position.set(sp.x,0,sp.z);P.path.length=0;} }
+  if(P.path.length){ const t=P.path[0],dx=t.x-P.root.position.x,dz=t.z-P.root.position.z,d=Math.hypot(dx,dz),sl=speed*dt;
+    if(d<=sl){P.root.position.x=t.x;P.root.position.z=t.z;P.path.shift();}
+    else{P.root.position.x+=dx/d*sl;P.root.position.z+=dz/d*sl;P.root.rotation.y=Math.atan2(dx,dz);P.phase+=dt*9;const s=Math.sin(P.phase)*.55;P.legL.rotation.x=s;P.legR.rotation.x=-s;P.armL.rotation.x=-s*.7;P.armR.rotation.x=s*.7;}
+    if(!P.path.length){P.legL.rotation.x=P.legR.rotation.x=P.armL.rotation.x=P.armR.rotation.x=0;} }
+  if(!P.path.length&&name!=='wander'){ const sp=SPOTS[name]; st.arrived=true;
+    let pose=sp.pose||'stand'; if(pose==='floor')pose=age<.55?'lie':age<1.3?'sit':'stand';
+    if(P.pose!==pose||P.root.position.y!==(sp.y||0)){setPose(P,pose);P.root.position.y=sp.y||0;if(sp.face!=null)P.root.rotation.y=sp.face;} }
+}
+
+/* ---------- stations ---------- */
+const STN={
+  bed:{x:2.65,z:2.1,mx:1.4,mz:2.1,ic:'🛏️',acts:['sleep']},desk:{x:10.5,z:1.6,mx:9.7,mz:1.6,ic:'💼',acts:['work']},gym:{x:12.2,z:2.6,mx:12.8,mz:2.6,ic:'🏋️',acts:['exercise']},
+  couch:{x:5.1,z:6.7,mx:5.1,mz:7.5,ic:'🛋️',acts:['relax']},tv:{x:5.1,z:5.2,mx:5.1,mz:4.5,my:1.9,ic:'📺',acts:['tv']},play:{x:2.75,z:6.5,mx:1.7,mz:6.5,my:1.0,ic:'🧸',acts:['play']},
+  table:{x:10.4,z:7.3,mx:10.4,mz:8.3,ic:'🍽️',acts:['feed']},sink:{x:12.2,z:5.45,mx:12.2,mz:4.6,ic:'🧽',acts:['chores']},door:{x:13.25,z:7.8,mx:13.85,mz:7.8,ic:'🚪',acts:['date','friends']},
+  yard:{x:6.6,z:13.6,mx:7.8,mz:14.9,my:1.2,ic:'⚽',acts:['outside']},read:{x:7.75,z:3.15,mx:8.5,mz:3.45,ic:'📖',acts:['read']},
+  change:{x:5.9,z:1.4,mx:5.0,mz:1.25,ic:'🧷',acts:['change','homework']},crib:{x:7.95,z:1.0,mx:8.7,mz:1.0,ic:'🌙',acts:['soothe','bedtime']},
+};
+for(const id in STN){const s=STN[id];s.sp=new THREE.Sprite(new THREE.SpriteMaterial({map:emojiTex(s.ic),transparent:true,toneMapped:false,depthWrite:false,opacity:.9}));
+  s.sp.position.set(s.mx,s.my||1.55,s.mz);s.sp.scale.setScalar(.26);s.sp.visible=false;scene.add(s.sp);}
+function stActs(id){ const out=[],K=S.kid;
+  for(const a of STN[id].acts){
+    if(a==='tv'){ if(S.h/24<.3)continue; out.push({id:'tv',label:S.tv?'Turn off the TV':`Put on a show for ${N.k}`,block:S.tv?'':(K.away?`${N.k} is not home`:K.asleep?`${N.k} is asleep`:'')}); continue; }
+    const l=offered(a); if(l)out.push({id:a,label:l,block:actBlock(a)}); }
+  return out; }
+function urgent(id){ const K=S.kid,D=S.dad,home=!K.away&&!K.asleep;
+  switch(id){case 'table':return home&&K.food<40;case 'change':return home&&(diaper()?K.clean<40:(S.h/24>=6&&K.school<40));case 'play':return home&&K.fun<35;case 'read':return home&&K.love<40;
+    case 'crib':return K.crying||(K.sleepy&&!K.asleep&&S.h/24<9);case 'bed':return D.energy<25;case 'gym':return D.fitness<32;case 'couch':return D.mind<30||(!S.divorced&&S.marriage<35);
+    case 'desk':return S.employed?S.careerBar<25:true;case 'sink':return S.mess>65;case 'door':return D.social<25;} return false; }
+
+/* ---------- per-frame world ---------- */
+const HT=[[0,.5],[1,.76],[2,.88],[4,1.03],[6,1.16],[8,1.28],[10,1.39],[12,1.5],[14,1.63],[16,1.71],[18,1.75]];
+function kidHeight(a){for(let i=1;i<HT.length;i++)if(a<=HT[i][0]){const [a0,h0]=HT[i-1],[a1,h1]=HT[i];const h=lerp(h0,h1,(a-a0)/(a1-a0));return S.sex==='girl'&&a>12?lerp(h,1.63,sat((a-12)/3)):h;}return 1.75;}
+const SHIRTS=[[0,0xf2f0ea],[1,0xf0b84a],[3,0x4f9d69],[6,0xc8443a],[9,0x3d6fb0],[13,0x2b2d33],[16,0x7b8d99]];
+const sunDir=new THREE.Vector3(),cWarm=new THREE.Color(0xffa25a),cNoon=new THREE.Color(0xfff2df),cMoon=new THREE.Color(0x8ea6ff);
+let lampK=0,tAnim=0;
+function updateLight(dt){
+  const dayH=S?S.h%24:4.5,clock=(dayH+6)%24,a=(clock-6)/12*PI,el=Math.sin(a);
+  sunDir.set(Math.cos(a)*.85,el*.9,.5).normalize();SU.sunDir.value.copy(sunDir);
+  {const d=sat(el*4+.1),k=sat(1-Math.abs(el)*4.5)*.85;SU.top.value.copy(SKY.nightT).lerp(SKY.dayT,d).lerp(SKY.duskT,k*.6);SU.bot.value.copy(SKY.nightB).lerp(SKY.dayB,d).lerp(SKY.duskB,k);SU.sunCol.value.copy(cWarm).lerp(cNoon,sat(el*2)).multiplyScalar(sat(el*6+.3));}
+  const day=sat(el*5+.15);
+  if(el>.01){sun.position.copy(sunDir).multiplyScalar(48).add(sun.target.position);sun.intensity=4.4*sat(el*3.5);sun.color.copy(cWarm).lerp(cNoon,sat(el*1.7));}
+  else{sun.position.set(-14,34,16).add(sun.target.position);sun.intensity=.22;sun.color.copy(cMoon);}
+  hemi.intensity=lerp(.06,.62,day);scene.environmentIntensity=lerp(.07,.42,day);
+  const want=(clock>=17.1||clock<7.2)?((S&&S.act&&S.act.id==='sleep')?.05:1):0;lampK+=(want-lampK)*Math.min(1,dt*3);
+  for(const l of lamps)l.intensity=l.userData.p*lampK;MAT.shade.emissiveIntensity=lampK*2.4;
+}
+function updateWorld(dt){
+  tAnim+=dt;updateLight(dt);
+  if(!S)return; const age=S.h/24,K=S.kid,M=S.mom;
+  W.crib.visible=age<2.5;W.kbed.visible=!W.crib.visible;W.changeT.visible=diaper();W.kdesk.visible=age>=5;W.hchair.visible=age>=.4&&age<3.6;W.toys.visible=age<9;W.mat.visible=age<6;
+  const on=S.tv;MAT.screen.emissiveIntensity=on?1.5:0;if(on)MAT.screen.emissive.setHSL((tAnim*.13)%1,.6,.55);W.tvLight.intensity=on?2.2+Math.sin(tAnim*7)*.6:0;if(on)W.tvLight.color.copy(MAT.screen.emissive);
+  // kid body
+  const h=kidHeight(age);kid.root.scale.setScalar(h/1.7);{const k=lerp(1.45,1,sat(age/7));kid.root.scale.x*=k;kid.root.scale.z*=k;}kid.head.scale.setScalar(lerp(1.75,1,Math.pow(sat(age/12),.7)));
+  kid.long.visible=S.sex==='girl'&&age>2;kid.shoes[0].visible=kid.shoes[1].visible=age>1.2;let sc=SHIRTS[0][1];for(const s of SHIRTS)if(age>=s[0])sc=s[1];kid.shirt.color.setHex(sc);kid.pants.color.setHex(age<1?sc:age<13?0x44546b:0x2d3340);
+  updNPC(kid,K,dt,age<1.25?0:age<4?2.2:3.2,age<1.25,age);
+  updNPC(mom,M,dt,3.0,false,30);
+  if(K.busy==='dad'&&kid.pose==='stand'&&!kid.path.length&&kid.cur!=='arms')kid.root.rotation.y=Math.atan2(pos.x-kid.root.position.x,pos.z-kid.root.position.z);
+  if(S.act&&S.act.id==='couple'&&!mom.path.length&&mom.pose==='stand')mom.root.rotation.y=Math.atan2(pos.x-mom.root.position.x,pos.z-mom.root.position.z);
+  const up=K.upset;
+  bubble(kid,kid.cur==='arms'?'':K.asleep?'💤':up==='cry'?'😭':up==='food'?(age<1?'🍼':'🍽️'):up==='clean'?'💩':up==='fun'?'😫':up==='love'?'💔':up==='rest'?'🥱':K.screen?(age<10?'📺':'📱'):K.sleepy?'🥱':'',
+    (kid.pose==='lie'?.35:kid.pose==='sit'?h*.62+.3:h+.28));
+  bubble(mom,M.asleep?'💤':M.load>70?'😮‍💨':(M.task&&M.task.type==='talk'&&M.arrived)?'💬':'',mom.pose==='lie'?.5:mom.pose==='sit'?1.25:1.98);
+  for(const id in STN){const s=STN[id],acts=stActs(id);const d=Math.hypot(s.mx-pos.x,s.mz-pos.z);s.sp.visible=acts.length>0&&d<11&&playing&&!S.act;
+    if(s.sp.visible){const u=urgent(id);s.sp.scale.setScalar(u?.34+Math.sin(tAnim*6)*.05:.24);s.sp.material.opacity=u?1:.6;} }
+}
+
+/* =====================================================================
+   PLAYER, INPUT, HUD
+   ===================================================================== */
+const SPEED=+(QS.get('speed')||1);
+const keys={},pos={x:6.6,z:8.7};let yaw=1.05,pitch=-.08,playing=false,finOpen=false,locked=false,moveLatch=false,focus=null,muted=false,actx=null,dragging=false;
+function blip(f=660,d=.12,v=.04,type='sine'){ if(muted||HEAD.on)return; try{actx=actx||new AudioContext();const o=actx.createOscillator(),g=actx.createGain();o.type=type;o.frequency.value=f;
+  g.gain.setValueAtTime(v,actx.currentTime);g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+d);o.connect(g).connect(actx.destination);o.start();o.stop(actx.currentTime+d);}catch(e){} }
+function collide(){const r=.28;for(let it=0;it<2;it++)for(const c of colliders){const cx=clamp(pos.x,c.x0,c.x1),cz=clamp(pos.z,c.z0,c.z1),dx=pos.x-cx,dz=pos.z-cz,d2=dx*dx+dz*dz;
+  if(d2<r*r){ if(d2>1e-9){const d=Math.sqrt(d2);pos.x=cx+dx/d*r;pos.z=cz+dz/d*r;} else{const l=pos.x-c.x0,rr=c.x1-pos.x,t=pos.z-c.z0,b=c.z1-pos.z,m=Math.min(l,rr,t,b);if(m===l)pos.x=c.x0-r;else if(m===rr)pos.x=c.x1+r;else if(m===t)pos.z=c.z0-r;else pos.z=c.z1+r;} } } }
+function updatePlayer(dt){
+  if(!playing){yaw+=dt*.04;camera.position.set(pos.x,1.68,pos.z);camera.rotation.set(pitch,yaw,0);return;}
+  yaw+=((keys.ArrowLeft?1:0)-(keys.ArrowRight?1:0))*2.3*dt;pitch=clamp(pitch+((keys.ArrowUp?1:0)-(keys.ArrowDown?1:0))*1.3*dt,-1.35,1.35);
+  const f=(keys.KeyW?1:0)-(keys.KeyS?1:0),r=(keys.KeyD?1:0)-(keys.KeyA?1:0);
+  if(!f&&!r)moveLatch=false;
+  if((f||r)&&!moveLatch&&!S.event&&!finOpen&&!S.paused&&!S.away){ if(S.act)stopAct();
+    const sp=4.4*dt/Math.hypot(f,r),sx=-Math.sin(yaw),sz=-Math.cos(yaw);pos.x+=(sx*f+Math.cos(yaw)*r)*sp;pos.z+=(sz*f-Math.sin(yaw)*r)*sp;collide(); }
+  camera.position.set(pos.x,1.68,pos.z);camera.rotation.set(pitch,yaw,0);
+}
+function findFocus(){ if(!playing||S.act||S.away||S.event)return null;let best=null,bs=1e9;const fxx=-Math.sin(yaw),fz=-Math.cos(yaw);
+  const consider=(id,ax,az,mx,mz,acts)=>{ if(!acts.length)return;const dm=Math.hypot(mx-pos.x,mz-pos.z),dd=Math.min(Math.hypot(ax-pos.x,az-pos.z),dm);if(dd>2.3)return;
+    const dot=dm>.05?((mx-pos.x)*fxx+(mz-pos.z)*fz)/dm:1;if(dot<.5&&dd>.8)return;const sc=dd-dot*1.3;if(sc<bs){bs=sc;best={id,acts};} };
+  for(const id in STN){const s=STN[id];consider(id,s.x,s.z,s.mx,s.mz,stActs(id));}
+  const K=S.kid; if(kid.root.visible&&kid.cur!=='arms'&&!K.asleep&&!K.crying){const p=kid.root.position,l=offered('hangout');consider('kid',p.x,p.z,p.x,p.z,[{id:'hangout',label:l,block:actBlock('hangout')}]);}
+  if(mom.root.visible&&!S.mom.asleep){const p=mom.root.position,l=offered('couple');if(l)consider('mom',p.x,p.z,p.x,p.z,[{id:'couple',label:l,block:actBlock('couple')}]);}
+  return best; }
+function doAct(a){ if(!a)return; if(a.block){toast(a.block+'.','dim');return;}
+  if(a.id==='tv'){S.tv=!S.tv;blip(S.tv?520:300);if(S.tv&&S.h/24<2)toast('📺 Under two, the guidance is no screens at all except video calls.','dim');return;}
+  if(startAct(a.id)){moveLatch=!!(keys.KeyW||keys.KeyA||keys.KeyS||keys.KeyD);blip(700,.08);} }
+addEventListener('keydown',e=>{
+  if(e.code==='Tab'){e.preventDefault();if(playing&&!S.event)toggleFin();return;}
+  if(e.target.tagName==='INPUT')return;
+  if(e.code.startsWith('Arrow')||e.code==='Space')e.preventDefault();
+  if(e.repeat)return; keys[e.code]=true;
+  if(!playing)return;
+  const n=e.code.startsWith('Digit')?+e.code[5]:e.code.startsWith('Numpad')?+e.code[6]:0;
+  if(S.event){ if(S.event.stage===0){if(n)pick(n-1);} else if(['KeyE','Enter','Space'].includes(e.code))closeEvent(); return; }
+  if(finOpen){ if(n>=1&&n<=CONTRIBS.length){S.contrib=CONTRIBS[n-1];renderFin();blip(600);} if(e.code==='Escape'||e.code==='KeyE')toggleFin(); return; }
+  if(e.code==='KeyP'){setPaused(!S.paused);return;} if(e.code==='KeyM'){muted=!muted;return;}
+  if(S.paused)return;
+  if(e.code==='KeyE'){ if(S.act){stopAct();blip(400,.08);} else if(focus)doAct(focus.acts[0]); }
+  else if(n&&focus&&focus.acts[n])doAct(focus.acts[n]);
+});
+addEventListener('keyup',e=>{keys[e.code]=false;});
+addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
+canvas.addEventListener('mousedown',()=>{dragging=true;if(playing&&!locked&&!S.event&&!finOpen)lockPtr();});
+addEventListener('mouseup',()=>dragging=false);
+addEventListener('mousemove',e=>{ if(!playing||(!locked&&!dragging)||S.paused)return;yaw-=e.movementX*.0023;pitch=clamp(pitch-e.movementY*.0023,-1.35,1.35); });
+document.addEventListener('pointerlockchange',()=>{const was=locked;locked=document.pointerLockElement===canvas;if(locked)setPaused(false);else if(was&&playing&&!S.event&&!finOpen)setPaused(true);});
+$('#pause').addEventListener('click',()=>{setPaused(false);lockPtr();});
+function lockPtr(){try{const r=canvas.requestPointerLock&&canvas.requestPointerLock();r&&r.catch&&r.catch(()=>{});}catch(e){}}
+function setPaused(p){ if(!S)return;S.paused=p;$('#pause').hidden=!p; }
+function resize(){renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}
+addEventListener('resize',resize);resize();
+
+/* ---------- HUD ---------- */
+function mkBars(el,defs){const o={};for(const [k,ic,lb] of defs){const d=document.createElement('div');d.className='bar';d.innerHTML=`<span class="ic">${ic}</span><span class="lb">${lb}</span><div class="tr"><i></i></div><b class="ar"></b>`;
+  el.appendChild(d);o[k]={d,fill:d.querySelector('i'),ar:d.querySelector('.ar'),lb:d.querySelector('.lb'),prev:null};}return o;}
+const B={...mkBars($('#dadBars'),[['energy','⚡','Energy'],['fitness','💪','Fitness'],['mind','🧠','Mind'],['social','🍻','Social']]),
+  ...mkBars($('#life'),[['bond','❤️','Fatherhood'],['marriage','💍','Marriage'],['careerBar','📈','Career']]),
+  ...mkBars($('#kidBars'),[['food','🍼','Food'],['rest','😴','Sleep'],['clean','🧷','Diaper'],['fun','🧸','Fun'],['love','🫶','Love'],['school','✏️','School']])};
+const SKB={};for(const [k,l] of [['motor','Motor'],['language','Language'],['social','Social'],['cognitive','Thinking']]){const d=document.createElement('div');d.className='sk';d.innerHTML=`<span>${l}</span><div class="tr"><i></i></div>`;$('#kidSk').appendChild(d);SKB[k]=d.querySelector('i');}
+function setBar(k,v,dh){const b=B[k];const rate=b.prev==null||dh<=0?0:(v-b.prev)/dh;b.prev=v;b.fill.style.width=clamp(v)+'%';b.fill.style.background=v>60?'var(--g)':v>30?'var(--y)':'var(--r)';
+  b.d.classList.toggle('crit',v<20);b.ar.textContent=rate>12?'▲▲':rate>.7?'▲':rate<-9?'▼▼':'';b.ar.style.color=rate>0?'var(--g)':'var(--r)';}
+let hudH=0,promptStr='',shownEv='';
+function updateHUD(){
+  const K=S.kid,D=S.dad,M=S.mom,age=S.h/24,dh=S.h-hudH;hudH=S.h;
+  for(const k in D)setBar(k,D[k],dh);
+  setBar('bond',S.bond,dh);setBar('marriage',S.divorced?0:S.marriage,dh);setBar('careerBar',S.employed?S.careerBar:S.hunt/S.huntNeed*100,dh);
+  B.marriage.lb.textContent=S.divorced?'Divorced':'Marriage';B.careerBar.lb.textContent=S.employed?'Career':'Job hunt';
+  const nl=needList(age);for(const k of ['food','rest','clean','fun','love','school']){B[k].d.hidden=!nl.includes(k);if(!B[k].d.hidden)setBar(k,K[k],dh);}
+  for(const s in SKB)SKB[s].style.width=clamp(ratio(s)/1.2*100)+'%',SKB[s].style.background=ratio(s)>=.9?'var(--acc)':ratio(s)>=.75?'var(--y)':'var(--r)';
+  $('#dadJob').textContent=S.employed?`${CAREERS[S.career].icon} ${money(S.salary)}/yr`:'unemployed';
+  $('#kidN').textContent=N.k;
+  $('#kidSt').textContent=K.away?(age>=5?'at school':'at daycare'):K.crying?'crying':K.asleep?(K.nap?'napping':'asleep'):K.busy==='mom'?`with ${N.w}`:K.busy==='dad'?'with you':K.screen?'on a screen':K.sleepy?'sleepy':'';
+  const y=Math.floor(age),mo=Math.floor((age-y)*12);
+  $('#yrL').textContent=`Year ${Math.min(18,y+1)} of 18`;$('#clk').textContent=clockStr();$('#ageL').textContent=`${N.k}: ${y?y+'y ':''}${mo}m`;$('#yr i').style.width=age/18*100+'%';
+  $('#money').innerHTML=`<span>Savings <b class="${S.money<0?'neg':''}">${money(S.money)}</b></span><span>College fund <b>${money(S.fund)}</b> <u>${S.contrib?'+'+money(S.contrib)+'/mo':'not saving'}</u></span>`;
+  const sc=Math.max(S.screenAvg,S.screenToday),lim=screenLimit(age);
+  $('#scrL').innerHTML=`Screens <span style="float:right;text-transform:none;letter-spacing:0;color:${sc>lim+.1?'var(--r)':'var(--dim)'}">${sc.toFixed(1)} h/day · guide ${lim<.5?'none':'≤'+lim+' h'}</span>`;
+  const nx=PERKS[S.lvl];$('#xp').innerHTML=`Dad level <b>${S.lvl}</b> · ${Math.floor(S.xp)} XP · life satisfaction ${Math.round((S.sat||0)*100)}%${nx?` · next: ${nx[1]}`:''}<div class="tr"><i style="width:${nx?(S.xp-S.lvl*XP_PER_LEVEL)/XP_PER_LEVEL*100:100}%"></i></div>`;
+  // alert
+  const al=$('#alert');let msg='';const up=K.upset;
+  if(up&&!S.away)msg=up==='cry'?`${N.k} is crying`:up==='food'?`${N.k} is hungry`:up==='clean'?`${N.k} needs a diaper change`:up==='fun'?`${N.k} is bored out of ${N.his} mind`:up==='love'?`${N.k} needs you`:`${N.k} is overtired`;
+  else if(D.energy<12&&!(S.act&&S.act.id==='sleep'))msg='You can barely keep your eyes open';
+  else if(!S.employed&&!(S.act&&S.act.id==='work'))msg='Unemployed. Job hunt at your desk';
+  al.hidden=!msg;al.textContent=msg;
+  // activity banner
+  const ab=$('#actB'),A=S.act;
+  if(A&&!S.away&&A.id!=='sleep'){const names={work:S.employed?'Working':'Job hunting',exercise:'Working out',relax:M.task&&M.task.type==='talk'&&M.arrived?`Talking with ${N.w}`:'Sitting down',couple:`Talking with ${N.w}`,chores:'Dishes and laundry',feed:M.task&&M.task.type==='dinner'&&M.arrived?'Family dinner':`Feeding ${N.k}`,play:`Playing with ${N.k}`,outside:'Playing outside',read:age<10?`Reading to ${N.k}`:`Talking with ${N.k}`,change:'Changing the diaper',homework:'Helping with homework',hangout:age<2?`Cuddling ${N.k}`:`Hanging out with ${N.k}`,bedtime:age<9?'Bath, book, bed':'Saying goodnight',soothe:`Soothing ${N.k}`};
+    const wait=KIDACTS.has(A.id)&&!K.arrived, pg=(A.id==='bedtime'||A.id==='soothe')?A.p/.4:(A.id==='work'&&!S.employed)?S.hunt/S.huntNeed:-1;
+    ab.hidden=false;ab.innerHTML=`${wait?`Waiting for ${N.k}…`:names[A.id]||A.id}<small><kbd>E</kbd>or walk away to stop</small>${pg>=0?`<div class="pg"><i style="width:${sat(pg)*100}%"></i></div>`:''}`;}
+  else ab.hidden=true;
+  const lids=$('#lids');
+  if(A&&A.id==='sleep'){lids.style.opacity=.94;lids.innerHTML=`<div>💤 ${clockStr()}</div><small>E to get up</small>`;}
+  else if(S.away){lids.style.opacity=.94;lids.innerHTML=`<div>${S.away.type==='date'?`🍷 Date night with ${N.w}`:'🍻 Out with friends'}</div><small>${clockStr()} · E to head home early</small>`;}
+  else lids.style.opacity=0;
+  // toasts
+  while(toastQ.length){const t=toastQ.shift(),el=document.createElement('div');el.className='toast '+t.cls;el.textContent=t.msg;const box=$('#toasts');box.appendChild(el);while(box.children.length>5)box.firstChild.remove();
+    blip(t.cls==='warn'?200:t.cls==='mile'?880:t.cls==='good'?660:440,.14,.035,t.cls==='warn'?'triangle':'sine');
+    setTimeout(()=>el.classList.add('out'),6500);setTimeout(()=>el.remove(),7200);}
+  renderEvent();
+}
+function updatePrompt(){
+  focus=findFocus();let s='';
+  if(focus){const a=focus.acts[0];s=a.block?`<div class="no">${a.block}</div>`:`<kbd>E</kbd>${a.label}`;
+    for(let i=1;i<focus.acts.length;i++){const b=focus.acts[i];s+=`<div class="alt">${b.block?`<span class="no">${b.label}: ${b.block}</span>`:`<kbd>${i}</kbd>${b.label}`}</div>`;}}
+  if(s!==promptStr){promptStr=s;$('#prompt').innerHTML=s;}
+}
+function renderEvent(){
+  const ev=S.event,m=$('#modal'); if(!ev){ if(shownEv){shownEv='';m.hidden=true;} return; }
+  const key=ev.def.id+ev.stage; if(shownEv===key)return; shownEv=key; m.hidden=false; const d=ev.def,age=S.h/24;
+  const tag=R(d.tag)||`${N.k} · ${age<1?Math.round(age*12)+' months':age<2?Math.round(age*12)+' months':'age '+Math.floor(age)}`;
+  let h=`<div class="tag">${tag}</div><h2>${R(d.title)}</h2>`;
+  if(ev.stage===0){h+=`<p>${R(d.text)}</p>`;R(d.choices).forEach((c,i)=>h+=`<button class="ch" data-i="${i}"><span class="k">${i+1}</span>${R(c.t)}</button>`);blip(520,.2);}
+  else{h+=`<p style="color:var(--dim)">${R(ev.pick.t)}</p>`;
+    if(ev.graded)h+=`<div class="verdict" style="color:${ev.pick.g?'var(--g)':'var(--r)'}">${ev.pick.g?'✓ In line with the guidance · +40 XP':'✗ Not what the guidance recommends'}</div>`;
+    if(ev.res)h+=`<p>${ev.res}</p>`; if(d.lit)h+=`<p class="lit"><b>What the literature says</b>${d.lit}</p>`;
+    h+=`<button class="ch" data-c="1" style="text-align:center"><span class="k">E</span>Continue</button>`;}
+  $('#mcard').innerHTML=h;
+}
+$('#mcard').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.c)closeEvent();else pick(+b.dataset.i);});
+function pick(i){choose(i);renderEvent();}
+function closeEvent(){ if(S.event&&S.event.stage===1){S.event=null;renderEvent();} }
+const CONTRIBS=[0,100,250,500,1000];
+function toggleFin(){finOpen=!finOpen;$('#fin').hidden=!finOpen;if(finOpen)renderFin();}
+function renderFin(){
+  const age=S.h/24,yrs=18-age,r=.06; const inc=S.employed?S.salary:0,exp=S.expense||0;
+  const proj=S.fund*Math.pow(1+r,yrs)+S.contrib*12*((Math.pow(1+r,yrs)-1)/r);
+  let h=`<div class="tag">Family finances</div><h2>The spreadsheet</h2><table class="fin">
+   <tr><td>Your pay (${S.career==='blue'?'9 hours a day, overtime extra':'for a full 6-hour day'})</td><td>${money(inc)}/yr</td></tr><tr><td>Household costs after ${S.divorced?'child support':N.w+"'s income"}</td><td>${money(-exp)}/yr</td></tr>
+   <tr><td>College fund contributions</td><td>${money(-S.contrib*12)}/yr</td></tr><tr><td><b>Savings</b></td><td><b>${money(S.money)}</b></td></tr>
+   <tr><td><b>529 college fund</b> (grows about 6% a year)</td><td><b>${money(S.fund)}</b></td></tr>
+   <tr><td>Projected fund when ${N.k} is 18</td><td style="color:${proj>=COLLEGE_COST?'var(--g)':'var(--y)'}">${money(proj)} of ${money(COLLEGE_COST)}</td></tr></table>
+   <p>Monthly contribution. Money put in early has longest to compound: $250 a month from birth grows to about $97k, while the same $250 started at age ten reaches about $31k.</p>`;
+  CONTRIBS.forEach((c,i)=>h+=`<button class="ch" data-i="${i}" style="${S.contrib===c?'border-color:var(--warm);background:rgba(243,181,98,.14)':''}"><span class="k">${i+1}</span>${c?money(c)+' a month':'Nothing for now'}</button>`);
+  h+=`<button class="ch" data-c="1" style="text-align:center"><span class="k">Tab</span>Close</button>`;$('#fcard').innerHTML=h;
+}
+$('#fcard').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.c)toggleFin();else{S.contrib=CONTRIBS[+b.dataset.i];renderFin();}});
+
+/* ---------- ending ---------- */
+function outcome(){
+  const K=S.kid,sk=K.skills,avg=(sk.motor+sk.language+sk.social+sk.cognitive)/4,D=S.dad;
+  const gap=Math.max(0,COLLEGE_COST-S.fund),fromSav=Math.min(gap,Math.max(0,S.money-5000)),loans=gap-fromSav;
+  const score=.3*avg+.25*S.bond+.13*(S.divorced?15:S.marriage)+.1*(D.energy+D.fitness+D.mind+D.social)/4+.1*(S.employed?Math.min(100,40+S.careerBar*.3+S.stats.promos*10):15)+.12*(1-loans/COLLEGE_COST)*100;
+  const grade=score>=84?'A':score>=74?'B':score>=62?'C':score>=50?'D':'F';
+  return {avg,loans,fromSav,score,grade};
+}
+function finish(){
+  playing=false;document.exitPointerLock?.();$('#hud').hidden=true;$('#modal').hidden=true;$('#lids').style.opacity=0;
+  const o=outcome(),K=S.kid,D=S.dad;
+  const kidLine=o.avg>=88?`${N.k} leaves for college confident, kind and ready for it.`:o.avg>=76?`${N.k} is ready. A few rough edges, like everyone.`:o.avg>=62?`${N.k} got in, with some catching up to do. ${N.He} will be okay.`:`${N.k} is taking a year to figure things out, starting further back than ${N.he} should be.`;
+  const bondLine=S.bond>=75?`At the dorm ${N.he} hugs you for a long time and says, "Thanks, Dad. For all of it."`:S.bond>=50?`At the dorm ${N.he} gives you a quick hug and a "love you, bye," already looking past you at the future.`:S.bond>=28?`At the dorm ${N.he} waves from the doorway. You realize you are not sure what ${N.his} favorite band is.`:`${N.He} says goodbye to you the way you would thank a ride-share driver.`;
+  const loanLine=o.loans<500?`The college fund${o.fromSav>500?' and '+money(o.fromSav)+' of savings':''} cover all four years. ${N.k} graduates with no debt.`:`The fund covers ${money(Math.min(S.fund,COLLEGE_COST))}${o.fromSav>500?', savings add '+money(o.fromSav):''}. ${N.k} signs for <b style="color:var(--r)">${money(o.loans)}</b> in student loans.`;
+  const marLine=S.divorced?`You and ${N.w} drive to drop-off in separate cars.`:S.marriage>=65?`You and ${N.w} drive home holding hands, to a very quiet house you are both curious about.`:S.marriage>=35?`You and ${N.w} drive home in a silence that is mostly comfortable.`:`You and ${N.w} drive home and realize you will have to learn how to talk to each other again.`;
+  const hLine=S.hyper?'Your blood pressure is still high. The empty nest comes with a gym membership.':D.fitness>=55?'Your doctor says you have the heart of a man ten years younger.':'You are winded carrying the mini-fridge up three flights.';
+  const title={A:'Dad of the Year',B:'A Really Good Dad',C:"World's Okayest Dad",D:'Present, Technically',F:'Cat\'s in the Cradle'}[o.grade];
+  const pct=s=>Math.round(clamp(ratio(s)*100,0,115))+'%';
+  $('#ecard').innerHTML=`<div class="tag">Eighteen years later</div><div style="display:flex;gap:18px;align-items:center"><div class="grade">${o.grade}</div><div><h2>${title}</h2><div style="color:var(--dim)">${Math.floor(S.xp)} life satisfaction XP · dad level ${S.lvl} · ${S.stats.good} of ${S.stats.total} calls in line with the guidance</div></div></div>
+   <p>${kidLine} ${bondLine}</p><p>${loanLine}</p><p>${marLine} ${hLine}</p>
+   <div class="grid2"><div><span>Fatherhood</span><b>${Math.round(S.bond)}</b></div><div><span>Marriage</span><b>${S.divorced?'divorced':Math.round(S.marriage)}</b></div>
+   <div><span>Motor</span><b>${pct('motor')}</b></div><div><span>Language</span><b>${pct('language')}</b></div><div><span>Social</span><b>${pct('social')}</b></div><div><span>Thinking</span><b>${pct('cognitive')}</b></div>
+   <div><span>Career</span><b>${S.employed?money(S.salary)+'/yr':'unemployed'}</b></div><div><span>Savings</span><b>${money(S.money)}</b></div>
+   <div><span>Hours with ${N.k} per day</span><b>${(S.stats.kid/18).toFixed(1)}</b></div><div><span>Hours at work per day</span><b>${(S.stats.work/18).toFixed(1)}</b></div>
+   <div><span>Hours of sleep per night</span><b>${(S.stats.sleep/18).toFixed(1)}</b></div><div><span>${N.k}'s screens per day</span><b>${(S.stats.screen/18).toFixed(1)} h</b></div></div>
+   <p class="lit"><b>Milestones</b>${S.mileLog.length} reached. ${S.mileLog.slice(-4).map(m=>m[1]).join(', ')}.</p>
+   <button class="go" onclick="location.reload()">Raise another one</button>`;
+  $('#end').hidden=false;
+}
+
+/* ---------- start screen ---------- */
+let pickCareer='white',pickSex='boy';
+$('#careers').innerHTML=Object.entries(CAREERS).map(([k,c])=>`<div class="car${k===pickCareer?' on':''}" data-k="${k}"><b>${c.icon} ${c.name}</b><i>${c.job} · ${money(c.salary)}/yr</i><span>${c.blurb}</span></div>`).join('');
+$('#careers').addEventListener('click',e=>{const c=e.target.closest('.car');if(!c)return;pickCareer=c.dataset.k;document.querySelectorAll('.car').forEach(x=>x.classList.toggle('on',x===c));});
+$('#segSex').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;pickSex=b.dataset.v;document.querySelectorAll('#segSex button').forEach(x=>x.classList.toggle('on',x===b));});
+function begin(cfg){
+  newGame(cfg);W.office.visible=W.chair.visible=cfg.career!=='blue';W.bench.visible=cfg.career==='blue';STN.desk.sp.material.map=emojiTex(CAREERS[cfg.career].icon);
+  $('#start').hidden=true;$('#hud').hidden=false;playing=true;pos.x=6.6;pos.z=8.7;yaw=1.05;pitch=-.08;hudH=0;
+  toast(`Welcome home, ${N.k}. Walk up to the glowing icons and press E.`,'good');toast('Icons pulse when something needs you. Tab opens the college fund.','dim');
+}
+$('#go').addEventListener('click',()=>{begin({career:pickCareer,sex:pickSex,kid:$('#inKid').value.trim(),spouse:$('#inSp').value.trim()});lockPtr();});
+
+/* ---------- main loop ---------- */
+let last=performance.now(),hudT=0;
+function frame(now){
+  requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;
+  if(playing&&!S.paused&&!S.event&&!finOpen){let dh=dt*(((S.act&&S.act.id==='sleep')||S.away)?FAST_RATE:DAY_RATE)*SPEED;
+    while(dh>1e-6&&!S.event&&!S.over){const d=Math.min(dh,.03);step(d);dh-=d;} if(S.over)finish();}
+  updatePlayer(dt);updateWorld(dt);renderer.render(scene,camera);
+  if(playing){hudT+=dt;if(hudT>.12){hudT=0;updateHUD();}updatePrompt();}
+}
+W.office.visible=W.chair.visible=true;W.bench.visible=false;W.kbed.visible=false;W.kdesk.visible=false;W.hchair.visible=false;
+requestAnimationFrame(frame);
+
+/* ---------- debug / balance bot: __dad.run('good'|'work'|'lazy', career) ---------- */
+function botPick(mode){
+  const K=S.kid,D=S.dad,M=S.mom,dayH=S.h%24,A=S.act?S.act.id:null,ok=id=>offered(id)&&!actBlock(id),night=dayH>=16.5;
+  if(S.away)return A;
+  if(mode==='work')return (night||D.energy<12)?'sleep':'work';
+  if(mode==='lazy')return (night||D.energy<20)?'sleep':D.mind<70?'relax':'work';
+  if(K.crying&&ok('soothe'))return 'soothe';
+  if(A==='bedtime'||A==='soothe')return A;
+  if(night||D.energy<10)return 'sleep';
+  if(A==='sleep'&&D.energy<60&&dayH>16)return 'sleep';
+  const keep=(id,cond)=>A===id&&cond;
+  if(!K.away&&!K.asleep){
+    if(ok('bedtime')&&K.sleepy)return 'bedtime';
+    if((K.food<45||keep('feed',K.food<96))&&ok('feed'))return 'feed';
+    if(diaper()&&(K.clean<45||keep('change',K.clean<96))&&ok('change'))return 'change';
+    if((K.love<55||keep('read',K.love<92))&&ok('read'))return 'read';
+    if((K.fun<50||keep('play',K.fun<90)||keep('outside',K.fun<90))&&ok('play'))return ok('outside')&&D.fitness<70?'outside':'play';
+    if(offered('homework')&&(K.school<55||keep('homework',K.school<92))&&ok('homework'))return 'homework';
+    if(S.bond<60&&dayH>9.5&&K.love<85&&ok('hangout'))return 'hangout';
+  }
+  if(!S.divorced&&(S.marriage<45||(S.marriage<75&&dayH>12.5)||keep('couple',S.marriage<90))){ if(S.marriage<40&&ok('date')&&S.money>2000)return 'date'; if(ok('couple'))return 'couple'; }
+  if(!S.employed&&D.mind>15)return 'work';
+  if(D.fitness<50||keep('exercise',D.fitness<72))return 'exercise';
+  if(D.social<28&&dayH>11)return 'friends';
+  if(D.mind<35||keep('relax',D.mind<55))return 'relax';
+  if(S.mess>65||keep('chores',S.mess>10))return 'chores';
+  return 'work';
+}
+function botRun(mode='good',career='white',opts={}){
+  HEAD.on=true;HEAD.log=[];begin({career,sex:'boy',kid:'Charlie',spouse:'Alex'});playing=false;$('#hud').hidden=true;$('#start').hidden=false;
+  if(opts.contrib!=null)S.contrib=opts.contrib; let guard=0;const trace=[];
+  while(!S.over&&guard++<2e6){
+    if(S.event){const cs=R(S.event.def.choices);let i=cs.findIndex(c=>c.g);if(mode!=='good'||i<0)i=mode==='good'?0:cs.findIndex(c=>!c.g);choose(Math.max(0,i));S.event=null;continue;}
+    let want=botPick(mode);if(opts.walk&&S.act&&S.act.t<.6&&want!=='soothe'&&!actBlock(S.act.id))want=S.act.id;if(want!==(S.act?S.act.id:null)){if(opts.walk&&!S.away){stopAct();for(let i=0;i<opts.walk/.03&&!S.event&&!S.over;i++)step(.03);if(S.event||S.over)continue;}if(want)startAct(want);else stopAct();}
+    for(let i=0;i<5&&!S.event&&!S.over;i++)step(.03);
+    if(opts.trace&&Math.floor(S.h/24)>trace.length)trace.push({y:trace.length+1,bond:Math.round(S.bond),mar:Math.round(S.marriage),car:Math.round(S.careerBar),en:Math.round(S.dad.energy),fit:Math.round(S.dad.fitness),mind:Math.round(S.dad.mind),soc:Math.round(S.dad.social),well:Math.round(wellbeing(S.h/24)),load:Math.round(S.mom.load),$:Math.round(S.money/1000),fund:Math.round(S.fund/1000),xp:Math.round(S.xp),lang:+ratio('language').toFixed(2),mot:+ratio('motor').toFixed(2)});
+  }
+  const o=outcome(),r={mode,career,grade:o.grade,score:Math.round(o.score),xp:Math.round(S.xp),lvl:S.lvl,bond:Math.round(S.bond),marriage:S.divorced?'divorced':Math.round(S.marriage),salary:Math.round(S.salary),employed:S.employed,
+    money:Math.round(S.money),fund:Math.round(S.fund),loans:Math.round(o.loans),skills:Object.fromEntries(Object.keys(S.kid.skills).map(s=>[s,+ratio(s).toFixed(2)])),hyper:S.hyper,
+    perDay:{work:+(S.stats.work/18).toFixed(1),kid:+(S.stats.kid/18).toFixed(1),sleep:+(S.stats.sleep/18).toFixed(1),couple:+(S.stats.couple/18).toFixed(1),screen:+(S.stats.screen/18).toFixed(1)},miles:S.mileLog.length,log:HEAD.log,trace};
+  HEAD.on=false;S=null;return r;
+}
+window.__dad={skip:()=>{for(const e of EVENTS)S.fired[e.id]=1;for(const f of FOLLOW)S.fired[f.id]=1;S.event=null;S.queue.length=0;},run:botRun,state:()=>S,begin,goto:(x,z,y=yaw,p=pitch)=>{pos.x=x;pos.z=z;yaw=y;pitch=p;},setH:h=>{S.h=h;},act:id=>startAct(id),step:(n=1)=>{for(let i=0;i<n;i++)step(.03);}};
+if(QS.get('auto')){begin({career:QS.get('auto'),sex:'boy',kid:'Charlie',spouse:'Alex'});}
+</script>
+</body>
+</html>
