@@ -57,15 +57,36 @@ going, and prints a summary at the end.
 ### Interactive explorer
 
 ```bash
-.venv/Scripts/python explore.py "a lighthouse on a cliff at dusk" --x "a jellyfish" --y "a forest" --cells 8
+.venv/Scripts/python explore.py "a lighthouse on a cliff at dusk"
+.venv/Scripts/python explore.py "a lighthouse on a cliff at dusk" --x pc1 --y "a jellyfish" --z random
 ```
 
 This lets you fly through a 3D grid slice of embedding space. Cell `(x, y, z)` renders
 `e0 + x·X + y·Y + z·Z`, with your prompt at the origin.
-- **Random axes:** by default the three axes are random, mutually orthogonal directions, and
-  `--step` sets the cell size as a fraction of `|e0|`.
-- **Prompt axes:** `--x/--y/--z "prompt"` points an axis at another prompt's embedding instead,
-  so `--cells` steps along it lands exactly on that prompt.
+
+Real prompts vary along only a tiny part of the embedding space. Across 240 varied prompts,
+90% of the variation lies along 38 of the 157,696 dimensions. So the axes are built from a corpus
+of real prompts: 240 built in (20 subjects × 12 styles), or your own list with `--corpus FILE`
+(one prompt per line). Each of `--x/--y/--z` can be:
+- `pc1`, `pc2`, …: principal components of the corpus, its main directions of variation.
+  The default is `pc1/pc2/pc3`. With the built-in corpus, pc1 runs roughly from
+  "pencil sketch" to "in the rain at night", and pc2 from "pixel art" to "studio-lit photo".
+- `random`: a random direction made only from the corpus's own variation.
+- `noise`: an isotropic random direction, for comparison. The image barely changes over
+  distances where corpus axes completely change it.
+- Any other text is treated as a prompt: the axis points at that prompt's embedding, and
+  `--cells` steps along it lands exactly on it.
+
+The console and the side panel label each axis end with the corpus prompts that lie farthest
+in that direction.
+
+For pc/random/noise axes, one cell is `--step` (default 0.15) times the median distance between
+two corpus prompts ("pd"). One pd is about the size of a full concept swap, like lighthouse →
+jellyfish. A single principal component only carries part of any concept, so expect clear changes
+at 1–3 pd (7–20 cells), with the image breaking down beyond that.
+
+Encoding the corpus takes about 6 s. The result is cached in `out/.corpus-cache/`, so later
+launches skip it.
 
 The image only depends on your position, so looking around doesn't change the picture.
 - **The side panel:** a chase-cam view of the grid lattice around you. Rendered cells are lit,

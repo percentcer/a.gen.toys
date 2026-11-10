@@ -2,9 +2,16 @@
 Fly through a 3D grid slice of a prompt's embedding space.
 
 Grid cell (x, y, z) renders the embedding e0 + x*X + y*Y + z*Z, where e0 is the
-prompt's embedding and X/Y/Z are three directions. By default these are random
-(and orthogonal); --x/--y/--z "some prompt" instead points an axis at another
-prompt's embedding, so --cells steps along it lands exactly on that prompt.
+prompt's embedding and X/Y/Z are three directions. Real prompts only vary along a
+few hundred of the ~158k embedding dimensions, so the axes are built from a corpus
+of real prompts (240 built-in, or --corpus FILE). Each of --x/--y/--z can be:
+    pc1, pc2, ...  a principal component of the corpus (the default is pc1/pc2/pc3)
+    random         a random direction drawn from the corpus's own variation
+    noise          an isotropic random direction (leaves the prompt manifold fast)
+    anything else  a prompt: the axis points at its embedding, reached in --cells steps
+For pc/random/noise axes, a cell is --step times the median distance between two
+corpus prompts ("pd"), the distance of a full concept swap like lighthouse -> jellyfish.
+A single pc only carries part of any concept, so changes show up after ~1-3 pd.
 
 The image only depends on your position. The side panel shows the grid from
 your camera: moves snap to whichever grid axis is closest to where you're
@@ -18,12 +25,15 @@ Controls:
 
 Examples:
     python explore.py "a lighthouse on a cliff at dusk"
+    python explore.py "a lighthouse on a cliff at dusk" --x pc1 --y random --z noise
     python explore.py "a lighthouse on a cliff at dusk" --x "a jellyfish" --y "a forest" --cells 8
 """
 
 import argparse
+import hashlib
 import json
 import math
+import re
 import threading
 import time
 from collections import OrderedDict
@@ -37,16 +47,31 @@ from nudge import MODELS, encode, fixed_latents, load_pipe, render_frame
 AXIS_NAMES = "XYZ"
 AXIS_COLORS = [(235, 90, 90), (90, 210, 110), (100, 150, 255)]
 
+CORPUS_SUBJECTS = [
+    "a lighthouse", "a jellyfish", "a forest", "a city street", "a cat", "an old man", "a mountain lake",
+    "a bowl of fruit", "a spaceship", "a cathedral", "a desert", "a robot", "a horse", "a coral reef",
+    "a library", "a waterfall", "a sports car", "a dragon", "a kitchen", "a field of sunflowers"]
+CORPUS_STYLES = [
+    "", "at dusk", "oil painting", "in the rain at night", "pencil sketch", "photograph, 35mm",
+    "watercolor", "in the snow", "pixel art", "studio lighting", "underwater", "made of glass"]
+
+
+def builtin_corpus():
+    return [f"{s}, {t}" if t else s for s in CORPUS_SUBJECTS for t in CORPUS_STYLES]
+
 
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("prompt")
     p.add_argument("--model", choices=MODELS, default="sdxl-turbo")
-    for a in "xyz":
-        p.add_argument(f"--{a}", metavar="PROMPT", help=f"point the {a.upper()} axis at this prompt's embedding")
+    for a, default in zip("xyz", ("pc1", "pc2", "pc3")):
+        p.add_argument(f"--{a}", metavar="AXIS", default=default,
+                       help=f"{a.upper()} axis: pcN, random, noise, or a prompt (default {default})")
+    p.add_argument("--corpus", type=Path, help="text file of prompts (one per line) to build axes from")
     p.add_argument("--cells", type=int, default=10, help="steps along a prompt axis to reach that prompt")
-    p.add_argument("--step", type=float, default=0.05,
-                   help="cell size along random axes, as a fraction of the embedding's norm")
+    p.add_argument("--step", type=float, default=0.15,
+                   help="cell size along pc/random/noise axes, as a fraction of the median distance "
+                        "between two corpus prompts")
     p.add_argument("--no-pooled", action="store_true",
                    help="SDXL only: leave the pooled embedding alone and only move the per-token one")
     p.add_argument("--seed", type=int, default=0)
@@ -72,46 +97,95 @@ class Space:
 
         self.pipe = load_pipe(args.model)
         e0, p0, self.neg, self.neg_pooled = encode(self.pipe, args.prompt, do_cfg)
-        self.e0 = e0.float()
-        self.p0 = p0.float() if p0 is not None and not args.no_pooled else None
+        # Embeddings are handled as one flat "joint" vector: per-token embeds, then pooled (if moved).
+        self.move_pooled = p0 is not None and not args.no_pooled
         self.p_fixed = p0  # used as-is when pooled isn't moved
+        self.e_shape = e0.shape
+        self.j0 = self._joint(e0, p0)
         self.latents = fixed_latents(self.pipe, self.size, args.seed)
 
-        gen = torch.Generator("cuda").manual_seed(args.seed + 1)
-        self.axes, self.labels = [], []
-        random_dirs = []  # (e, p) of random axes so far, kept mutually orthogonal
-        for name, axis_prompt in zip(AXIS_NAMES, (args.x, args.y, args.z)):
-            if axis_prompt:
-                e1, p1, _, _ = encode(self.pipe, axis_prompt, do_cfg)
-                de = (e1.float() - self.e0) / args.cells
-                dp = (p1.float() - self.p0) / args.cells if self.p0 is not None else None
-                self.labels.append(f"{axis_prompt} @ {args.cells}")
-            else:
-                de = self._random_dir(self.e0, [d[0] for d in random_dirs], gen) * args.step
-                dp = None
-                if self.p0 is not None:
-                    dp = self._random_dir(self.p0, [d[1] for d in random_dirs], gen) * args.step
-                random_dirs.append((de, dp))
-                self.labels.append("random")
-            self.axes.append((de, dp))
+        corpus = (args.corpus.read_text(encoding="utf-8").splitlines() if args.corpus else builtin_corpus())
+        corpus = [c.strip() for c in corpus if c.strip() and not c.startswith("#")]
+        J = self._encode_corpus(args, corpus)
+        X = J - J.mean(0)
+        # Work from the small N x N Gram matrix rather than the N x ~158k data: PCA via its
+        # eigenvectors, and pairwise distances via |a - b|^2 = |a|^2 + |b|^2 - 2 a.b.
+        G = X @ X.T
+        n_pcs = len(corpus) - 1  # centering costs one dimension
+        evals, evecs = torch.linalg.eigh(G.double())
+        evals, evecs = evals.flip(0)[:n_pcs].clamp_min(0), evecs.flip(1)[:, :n_pcs]
+        S = evals.sqrt().float()
+        Vh = (evecs.float().T @ X) / S[:, None]
+        i, j = torch.triu_indices(len(corpus), len(corpus), 1)
+        sq = G.diag()
+        pd = (sq[i] + sq[j] - 2 * G[i, j]).clamp_min(0).sqrt().median()  # unit for pc/random/noise steps
+        print(f"corpus: {len(corpus)} prompts, median prompt-to-prompt distance {pd:.0f} "
+              f"(|e0| = {self.j0.norm():.0f}), 1 cell = {args.step:g} pd")
 
-    @staticmethod
-    def _random_dir(x, others, gen):
-        # Random direction with norm |x|, orthogonal to the other random axes.
-        v = torch.randn(x.shape, generator=gen, device=x.device)
-        for o in others:
-            v = v - (v * o).sum() / (o * o).sum() * o
-        return v / v.norm() * x.norm()
+        gen = torch.Generator("cuda").manual_seed(args.seed + 1)
+        chosen = []  # unit directions of pc/random/noise axes, kept mutually orthogonal
+        self.axes, self.labels = [], []  # joint step vectors; (kind, + end, - end)
+        for name, spec in zip(AXIS_NAMES, (args.x, args.y, args.z)):
+            pc = re.fullmatch(r"pc(\d+)", spec)
+            if pc or spec in ("random", "noise"):
+                if pc:
+                    k = int(pc.group(1)) - 1
+                    if not 0 <= k < n_pcs:
+                        raise SystemExit(f"--{name.lower()} {spec}: the corpus only has pc1..pc{n_pcs}")
+                    v = Vh[k]
+                elif spec == "random":
+                    # Weighting by the singular values samples directions the way the corpus varies.
+                    v = (torch.randn(n_pcs, generator=gen, device="cuda") * S[:n_pcs]) @ Vh[:n_pcs]
+                else:
+                    v = torch.randn(X.shape[1], generator=gen, device="cuda")
+                for o in chosen:
+                    v = v - (v @ o) * o
+                v = v / v.norm()
+                chosen.append(v)
+                proj = X @ v
+                self.axes.append(v * args.step * pd)
+                if spec == "noise":
+                    self.labels.append(("noise", "off-manifold", "off-manifold"))
+                else:
+                    self.labels.append((spec, corpus[int(proj.argmax())], corpus[int(proj.argmin())]))
+                order = proj.argsort()
+                print(f"{name}: {spec}, 1 cell = {args.step * pd / proj.std():.2f} corpus sd along it")
+                if spec != "noise":
+                    print(f"   + end: {' | '.join(corpus[int(i)] for i in order[-3:].flip(0))}")
+                    print(f"   - end: {' | '.join(corpus[int(i)] for i in order[:3])}")
+            else:
+                e1, p1, _, _ = encode(self.pipe, spec, False)
+                self.axes.append((self._joint(e1, p1) - self.j0) / args.cells)
+                self.labels.append((f"@{args.cells}", spec, f"away from {spec}"))
+                print(f"{name}: toward '{spec}', reached in {args.cells} cells")
+
+    def _encode_corpus(self, args, corpus):
+        # Encoding ~240 prompts takes ~8s, so cache the result keyed on everything that affects it.
+        key = hashlib.sha1("\n".join([args.model, str(self.move_pooled)] + corpus).encode()).hexdigest()[:16]
+        cache = Path(__file__).parent / "out" / ".corpus-cache" / f"{key}.pt"
+        if cache.exists():
+            return torch.load(cache).to("cuda").float()
+        t0 = time.time()
+        J = torch.stack([self._joint(*encode(self.pipe, c, False)[:2]) for c in corpus])
+        print(f"corpus: encoded {len(corpus)} prompts in {time.time() - t0:.1f}s (cached for next time)")
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(J.half().cpu(), cache)
+        return J
+
+    def _joint(self, e, p):
+        parts = [e.float().flatten()]
+        if self.move_pooled:
+            parts.append(p.float().flatten())
+        return torch.cat(parts)
 
     def render(self, cell):
-        e = self.e0.clone()
-        p = self.p0.clone() if self.p0 is not None else None
-        for c, (de, dp) in zip(cell, self.axes):
-            e += c * de
-            if p is not None:
-                p += c * dp
-        p = p.half() if p is not None else self.p_fixed
-        return render_frame(self.pipe, e.half(), p, self.neg, self.neg_pooled, self.latents,
+        j = self.j0.clone()
+        for c, axis in zip(cell, self.axes):
+            j += c * axis
+        n = math.prod(self.e_shape)
+        e = j[:n].view(self.e_shape).half()
+        p = j[n:].view(1, -1).half() if self.move_pooled else self.p_fixed
+        return render_frame(self.pipe, e, p, self.neg, self.neg_pooled, self.latents,
                             self.seed, self.steps, self.guidance, self.size)
 
 
@@ -178,8 +252,10 @@ def snap(v):
 
 
 def step_label(step, labels):
+    """("+X", color, "pc1 a dragon, pixel art"): which way a step goes and the corpus prompt it leans toward."""
     i = next(k for k in range(3) if step[k])
-    return f"{'+' if step[i] > 0 else '-'}{AXIS_NAMES[i]}", AXIS_COLORS[i], labels[i]
+    kind, plus, minus = labels[i]
+    return f"{'+' if step[i] > 0 else '-'}{AXIS_NAMES[i]}", AXIS_COLORS[i], f"{kind} {plus if step[i] > 0 else minus}"
 
 
 def draw_lattice(surf, rect, pos, f, r, u, renderer, font, radius=3):
@@ -253,7 +329,9 @@ def main():
     screen.blit(big.render("loading model...", True, (200, 200, 200)), (20, 20))
     pygame.display.flip()
 
+    t_start = time.time()
     space = Space(args)
+    print(f"ready in {time.time() - t_start:.1f}s")
     renderer = Renderer(space, args.cache)
     renderer.start()
 
@@ -275,12 +353,12 @@ def main():
     while running:
         now = time.time()
         f, r, u = look_vectors(yaw, pitch)
-        moved_by_key = None
+        key_moves = []
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT or (ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE):
                 running = False
             elif ev.type == pygame.KEYDOWN and ev.key in move_keys:
-                moved_by_key = move_keys[ev.key]
+                key_moves.append(move_keys[ev.key])
             elif ev.type == pygame.KEYDOWN and ev.key == pygame.K_HOME:
                 pos = (0, 0, 0); path.append(pos)
             elif ev.type == pygame.KEYDOWN and ev.key == pygame.K_p:
@@ -302,11 +380,10 @@ def main():
             f, r, u = look_vectors(yaw, pitch)
 
         # A key press always moves; holding a key keeps moving once the current cell is on screen.
-        kind = moved_by_key
-        if kind is None and now - last_move > 0.12 and renderer.get(pos) is not None:
+        if not key_moves and now - last_move > 0.12 and renderer.get(pos) is not None:
             held = pygame.key.get_pressed()
-            kind = next((k for key, k in move_keys.items() if held[key]), None)
-        if kind is not None:
+            key_moves = [k for key, k in move_keys.items() if held[key]][:1]
+        for kind in key_moves:
             step = move_step(kind, f, r)
             pos = tuple(a + b for a, b in zip(pos, step))
             path.append(pos)
@@ -339,6 +416,8 @@ def main():
         y = lattice.bottom + 14
         lines = [
             (f"pos  x={pos[0]:+d}  y={pos[1]:+d}  z={pos[2]:+d}", (230, 230, 230)),
+            ("     " + "  ".join(f"{pos[i] / args.cells:+.0%}" if space.labels[i][0].startswith("@")
+                                 else f"{pos[i] * args.step:+.2f}pd" for i in range(3)), (170, 170, 170)),
             (f"look yaw={math.degrees(yaw) % 360:5.1f}  pitch={math.degrees(pitch):+5.1f}", (170, 170, 170)),
             ("", None),
         ]
