@@ -275,8 +275,8 @@ export function createUI(callbacks) {
     if (shownEv === key) return;
     shownEv = key;
     releasePointer();
-    if (finOpen) toggleFin(false);
-    if (mapOpen) toggleMap(false);
+    if (finOpen) toggleFin(false, false);
+    if (mapOpen) toggleMap(false, false);
     m.hidden = false;
 
     const d = ev.def, age = S.h / 24;
@@ -307,6 +307,7 @@ export function createUI(callbacks) {
     choose(i);
     sfx('click');
     renderEvent();
+    if (!getS()?.event && !isOverlayOpen()) callbacks.onResume?.();
   }
   function closeEvent() {
     const S = getS();
@@ -314,6 +315,7 @@ export function createUI(callbacks) {
       S.event = null;
       renderEvent();
       sfx('click');
+      if (!isOverlayOpen()) callbacks.onResume?.();
     }
   }
   $('#mcard').addEventListener('click', e => {
@@ -324,16 +326,18 @@ export function createUI(callbacks) {
   });
 
   /* ---------- Finances & Home Upgrades Modal (Tab) ---------- */
-  function toggleFin(force) {
+  function toggleFin(force, reacquire = true) {
     const S = getS();
     if (!S || S.event || S.over) return;
+    const was = finOpen;
     finOpen = force != null ? force : !finOpen;
     if (finOpen) {
       releasePointer();
-      if (mapOpen) toggleMap(false);
+      if (mapOpen) toggleMap(false, false);
       renderFin();
     }
     $('#fin').hidden = !finOpen;
+    if (was && !finOpen && reacquire && !isOverlayOpen()) callbacks.onResume?.();
   }
 
   function renderFin() {
@@ -387,16 +391,18 @@ export function createUI(callbacks) {
   });
 
   /* ---------- Town Travel Map Modal (T or Car) ---------- */
-  function toggleMap(force) {
+  function toggleMap(force, reacquire = true) {
     const S = getS();
     if (!S || S.event || S.over) return;
+    const was = mapOpen;
     mapOpen = force != null ? force : !mapOpen;
     if (mapOpen) {
       releasePointer();
-      if (finOpen) toggleFin(false);
+      if (finOpen) toggleFin(false, false);
       renderMap();
     }
     $('#tmap').hidden = !mapOpen;
+    if (was && !mapOpen && reacquire && !isOverlayOpen()) callbacks.onResume?.();
   }
 
   function renderMap() {

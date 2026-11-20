@@ -71,7 +71,7 @@ function begin(cfg) {
   lockPtr();
 }
 
-const ui = createUI({ onStart: begin });
+const ui = createUI({ onStart: begin, onResume: lockPtr });
 
 // Smooth fade transition when driving between locations
 setTravelHook(dest => {
@@ -151,7 +151,12 @@ window.addEventListener('keydown', e => {
     return;
   }
   if (e.code === 'KeyT') { ui.toggleMap(true); sfx('click'); return; }
-  if (e.code === 'KeyP') { setPaused(!S.paused); if (S.paused) ui.releasePointer(); return; }
+  if (e.code === 'KeyP') {
+    setPaused(!S.paused);
+    if (S.paused) ui.releasePointer();
+    else lockPtr();
+    return;
+  }
   if (e.code === 'KeyM') {
     const m = toggleMute();
     toast(m ? '🔇 Sound muted' : '🔊 Sound on', 'dim');
