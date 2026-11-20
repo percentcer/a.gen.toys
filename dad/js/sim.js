@@ -56,13 +56,13 @@ export const CAREERS = {
     salary: 74000,
     tax: 0.20,
     raise: 0.04,
-    living: 49000,
-    decay: 0.42,
-    stress: 0.60,
-    tire: 1.50,
+    living: 30000,
+    decay: 0.40,
+    stress: 0.58,
+    tire: 1.45,
     fit: 0.72,
     icon: '🔧',
-    blurb: 'Hourly pay (7.5h full shift, 1.35x overtime). Keeps you fit, lower stress, and AI cannot pull wire.',
+    blurb: 'Hourly pay (7.5h full shift, 1.3x overtime). Keeps you fit, lower stress, and AI cannot pull wire.',
   },
   white: {
     name: 'White Collar',
@@ -71,9 +71,9 @@ export const CAREERS = {
     salary: 96000,
     tax: 0.24,
     raise: 0.065,
-    living: 61000,
-    decay: 0.46,
-    stress: 0.95,
+    living: 41000,
+    decay: 0.44,
+    stress: 0.92,
     tire: 1.05,
     fit: -0.25,
     icon: '💼',
@@ -86,14 +86,20 @@ export const CAREERS = {
     salary: 148000,
     tax: 0.30,
     raise: 0.08,
-    living: 92000,
-    decay: 0.54,
-    stress: 1.30,
+    living: 64000,
+    decay: 0.52,
+    stress: 1.28,
     tire: 1.15,
     fit: -0.30,
     icon: '💻',
     blurb: 'High pay and stock promotions, high cost of living and stress, plus mid-career AI disruption.',
   },
+};
+
+export const LIFESTYLES = {
+  frugal:  { name: 'Frugal',      mul: 0.78, desc: '-22% living costs, slightly tighter mood & marriage' },
+  normal:  { name: 'Comfortable', mul: 1.00, desc: 'Balanced household spending' },
+  upscale: { name: 'Upscale',     mul: 1.22, desc: '+22% living costs, boosts mood, marriage & kid fun' },
 };
 
 export const UPGRADES = [
@@ -291,6 +297,7 @@ export function newGame(cfg) {
     money: 9500,
     fund: 0,
     contrib: 0,
+    lifestyle: 'normal',
     groceries: 2,          // fresh meal days stocked
     upgrades: {},
     style: { warmth: 0, structure: 0, presence: 0, provider: 0 },
@@ -332,6 +339,71 @@ export function newGame(cfg) {
     stats: { work: 0, kid: 0, sleep: 0, couple: 0, screen: 0, good: 0, total: 0, promos: 0, parkTrips: 0, townTrips: 0, officeDays: 0 },
   };
   return S;
+}
+
+export function calcBudget(st = S) {
+  if (!st) return null;
+  const C = CAREERS[st.career];
+  const age = st.h / 24;
+  const ls = LIFESTYLES[st.lifestyle] || LIFESTYLES.normal;
+  const gross = st.employed ? st.salary : 0;
+  const takeHome = gross * (1 - C.tax);
+  const living = Math.round(C.living * ls.mul * (st.employed ? 1 : 0.85));
+  const kidBasics = age < 12 ? 11000 : 13500;
+  const careActive = age >= 0.25 && age < 5;
+  const careCost = careActive ? (st.flags.care === 'daycare' ? 13000 : st.flags.care === 'home' ? 20000 : 0) : 0;
+  const cleanerCost = st.flags.cleaner ? 3600 : 0;
+  const sitterCost = st.flags.sitterHelp && age < 13 ? 4200 : 0;
+  const travelCost = st.flags.travel && age < 16 ? 5500 : 0;
+  const divorceCost = st.divorced ? 14000 : 0;
+  const spouseBonus = st.flags.spousePromo && !st.divorced ? 12000 : 0;
+  let totalExp = living + kidBasics + careCost + cleanerCost + sitterCost + travelCost + divorceCost - spouseBonus;
+  if (st.flags.austerity > age) totalExp *= 0.9;
+  totalExp = Math.max(18000, Math.round(totalExp));
+  const contribYr = st.contrib * 12;
+  const netFlow = Math.round(takeHome - totalExp - contribYr);
+  return {
+    gross, takeHome, living, kidBasics, careActive, careCost,
+    cleanerCost, sitterCost, travelCost, divorceCost, spouseBonus,
+    totalExp, contribYr, netFlow,
+  };
+}
+
+export function setLifestyle(tier) {
+  if (!S || !LIFESTYLES[tier] || S.lifestyle === tier) return false;
+  S.lifestyle = tier;
+  sfx('click');
+  toast(`💵 Living standard set to ${LIFESTYLES[tier].name}.`, 'dim');
+  return true;
+}
+
+export function setChildcare(mode) {
+  if (!S || !['daycare', 'home', 'juggle'].includes(mode)) return false;
+  if ((S.flags.care || 'juggle') === mode) return false;
+  S.flags.care = mode;
+  sfx('click');
+  const labels = {
+    daycare: 'Enrolled in Daycare ($13k/yr) — frees up your 8–3 workday.',
+    home: `${N.w} staying home with ${N.k} ($20k/yr net income offset).`,
+    juggle: 'Cancelled paid childcare ($0/yr) — juggling at home to save cash.',
+  };
+  toast(`🧸 ${labels[mode]}`, 'good');
+  return true;
+}
+
+export function toggleBudgetItem(key) {
+  if (!S) return false;
+  const on = !S.flags[key];
+  if (on) S.flags[key] = 1;
+  else delete S.flags[key];
+  sfx('click');
+  const names = {
+    cleaner: on ? 'Hired bi-weekly house cleaner ($3.6k/yr).' : 'Cancelled house cleaner (+$3.6k/yr saved).',
+    sitterHelp: on ? 'Hired regular after-school sitter ($4.2k/yr).' : 'Cancelled after-school sitter (+$4.2k/yr saved).',
+    travel: on ? 'Enrolled in Travel Sports Team ($5.5k/yr).' : 'Cancelled Travel Sports Team (+$5.5k/yr saved).',
+  };
+  toast(`📋 ${names[key] || 'Updated budget.'}`, on ? 'dim' : 'good');
+  return true;
 }
 
 export function buyUpgrade(id) {
@@ -844,7 +916,8 @@ export function step(dh) {
             S.money += (takeHome / 7.5) * 1.3 * dh;
           }
         } else {
-          if (S.workToday < WORKDAY) S.money += (takeHome / WORKDAY) * dh;
+          // 25% salaried base flows passively while employed; 75% earned across the 6h workday
+          if (S.workToday < WORKDAY) S.money += ((takeHome * 0.75) / WORKDAY) * dh;
           else if (crunch && S.workToday < 8.5) S.money += (takeHome / 34) * dh;
         }
         S.workToday += dh;
@@ -1195,16 +1268,27 @@ export function step(dh) {
   }
   if (K.upset) { S.bond -= 0.9 * dh; if (dadHome && awake) mind -= 0.9; }
 
-  // ----- Slow bars, mess, expenses & debt interest
+  // ----- Slow bars, mess, lifestyle, expenses & debt interest
   S.bond -= 0.31 * dh;
   if (!S.divorced) {
     let m = -0.28;
     if (M.load > 70) m -= 0.32;
     if (S.mess > 70) m -= 0.2;
     if (S.money < 0) m -= 0.28;
+    if (S.lifestyle === 'frugal') m -= 0.06;
+    else if (S.lifestyle === 'upscale') m += 0.14;
     S.marriage += m * dh;
   }
-  if (S.employed) S.careerBar -= C.decay * S.decayMul * dh;
+  if (S.lifestyle === 'frugal') mind -= 0.16;
+  else if (S.lifestyle === 'upscale') { mind += 0.24; if (kAwake) K.fun += 0.9 * dh; }
+  if (S.flags.sitterHelp && age < 13 && !M.gone) M.load -= 0.35 * dh;
+
+  if (S.employed) {
+    S.careerBar -= C.decay * S.decayMul * dh;
+    if (S.career !== 'blue') {
+      S.money += ((S.salary * (1 - C.tax) * 0.25) / 24) * dh;
+    }
+  }
 
   let messRate = (2.1 + (age < 12 ? 0.95 : 0));
   if (S.flags.chores && age >= 7) messRate *= 0.72;
@@ -1212,21 +1296,9 @@ export function step(dh) {
   if (S.flags.cleaner) messRate *= 0.65;
   S.mess += messRate * dh;
 
-  const daycare = S.flags.care === 'daycare' && age >= 0.25 && age < 5;
-  let exp =
-    C.living * (S.employed ? 1 : 0.78) +
-    (age < 12 ? 14500 : 17000) +
-    (daycare ? 13000 : 0) +
-    (S.flags.care === 'home' && age >= 0.25 && age < 5 ? 24000 : 0) +
-    (S.divorced ? 15000 : 0) +
-    (S.flags.travel && age < 16 ? 5500 : 0) +
-    (S.flags.cleaner ? 3600 : 0) +
-    (S.flags.sitterHelp && age < 13 ? 4500 : 0) -
-    (S.flags.spousePromo && !S.divorced ? 12000 : 0);
-  if (S.flags.austerity > age) exp *= 0.9;
-  exp = Math.max(26000, exp);
-  S.expense = exp;
-  S.money -= (exp / 24) * dh;
+  const bud = calcBudget(S);
+  S.expense = bud.totalExp;
+  S.money -= (bud.totalExp / 24) * dh;
 
   // Real credit card debt interest if negative!
   if (S.money < 0) {

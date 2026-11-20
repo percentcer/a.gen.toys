@@ -289,12 +289,12 @@ export function createEvents(helpers) {
       choices: [
         {
           t: 'Enroll in licensed daycare. ($13,000/yr)',
-          sub: 'Expensive, frees both workdays and builds early socialization.',
+          sub: 'Frees both workdays and builds early socialization (you can switch/cancel anytime in Tab).',
           fx: () => { fx({ flag: { care: 'daycare' }, skills: { social: 0.5 } }); style('provider', 2); },
           r: () => `Drop-off tears last a week. By month two, ${getN().k} reaches for the teachers and you have your workday back.`,
         },
         {
-          t: () => `${getN().w} pauses work to stay home until kindergarten. (-$26,000/yr household net)`,
+          t: () => `${getN().w} pauses work to stay home until kindergarten. ($20,000/yr net income offset)`,
           sub: 'Tight budget & heavy daytime load on your spouse; warm 1-on-1 days.',
           fx: () => { fx({ flag: { care: 'home' }, bond: 3, love: 8 }); style('warmth', 2); },
           r: () => `${getN().w} loves the mornings with ${getN().k} — and is completely fried by 5 PM. Your evenings belong to tag-team duty.`,
@@ -553,8 +553,8 @@ export function createEvents(helpers) {
           r: () => `${getN().w} hugs you so tight it knocks the wind out of you. Household cash flow breathes easier, and weeknights are officially your arena.`,
         },
         {
-          t: 'Celebrate it, and hire an after-school sitter two nights a week. (-$4,500/yr)',
-          sub: 'Net +$7.5k/yr household boost, protects both careers and sanity.',
+          t: 'Celebrate it, and hire an after-school sitter two nights a week. ($4,200/yr)',
+          sub: 'Net +$7.8k/yr household boost, protects both careers and sanity (cancelable in Tab).',
           fx: () => { fx({ marriage: 8, load: -8, flag: { spousePromo: 1, sitterHelp: 1 } }); style('provider', 2); },
           r: 'You split the difference smartly — both careers keep climbing and dinner stays sane.',
         },

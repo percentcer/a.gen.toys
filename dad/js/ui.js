@@ -1,9 +1,10 @@
 // HUD, Modals (Dilemmas, Finances & Upgrades, Town Map, Pause, Start, Ending).
 
 import {
-  CAREERS, LOCATIONS, UPGRADES, PERKS, XP_PER_LEVEL, COLLEGE_COST, KIDACTS,
+  CAREERS, LOCATIONS, UPGRADES, LIFESTYLES, PERKS, XP_PER_LEVEL, COLLEGE_COST, KIDACTS,
   clamp, sat, R, money, clockStr, seasonOf, needList, screenLimit, ratio,
   getS, getN, toastQ, choose, buyUpgrade, travelTo, outcome,
+  calcBudget, setLifestyle, setChildcare, toggleBudgetItem,
 } from './sim.js';
 import { sfx } from './audio.js';
 
@@ -344,27 +345,84 @@ export function createUI(callbacks) {
     const S = getS(), N = getN();
     const age = S.h / 24, yrs = 18 - age, r = 0.06;
     const C = CAREERS[S.career];
-    const inc = S.employed ? S.salary * (1 - C.tax) : 0, exp = S.expense || 0;
+    const b = calcBudget(S);
     const proj = S.fund * Math.pow(1 + r, yrs) + S.contrib * 12 * ((Math.pow(1 + r, yrs) - 1) / r);
 
-    let h = `<div class="tag">Household & 529</div><h2>Finances & Home Upgrades</h2>
+    let h = `<div class="tag">Household finances · ${money(S.money)} checking</div><h2>Budget, 529 &amp; Upgrades</h2>
       <div class="tabs">
-        <button data-tab="budget" class="${finTab === 'budget' ? 'on' : ''}">📊 Budget & 529</button>
-        <button data-tab="shop" class="${finTab === 'shop' ? 'on' : ''}">🏠 Home Upgrades (${Object.keys(S.upgrades).length}/${UPGRADES.length})</button>
+        <button data-tab="budget" class="${finTab === 'budget' ? 'on' : ''}">📊 Budget &amp; Bills</button>
+        <button data-tab="fund" class="${finTab === 'fund' ? 'on' : ''}">🎓 529 Fund (${money(S.fund)})</button>
+        <button data-tab="shop" class="${finTab === 'shop' ? 'on' : ''}">🏠 Upgrades (${Object.keys(S.upgrades).length}/${UPGRADES.length})</button>
       </div>`;
 
     if (finTab === 'budget') {
+      const extras = b.cleanerCost + b.sitterCost + b.travelCost;
       h += `<table class="fin">
-        <tr><td>Take-home pay (${money(S.employed ? S.salary : 0)} gross, ${Math.round(C.tax * 100)}% tax)</td><td>${money(inc)}/yr</td></tr>
-        <tr><td>Net household costs ${S.flags.spousePromo && !S.divorced ? '(with spouse raise!)' : ''}</td><td>${money(-exp)}/yr</td></tr>
-        <tr><td>529 college contributions</td><td>${money(-S.contrib * 12)}/yr</td></tr>
-        <tr><td><b>Checking / Savings</b> ${S.money < 0 ? '<span style="color:var(--r)">(18% APR interest!)</span>' : ''}</td><td><b style="color:${S.money < 0 ? 'var(--r)' : 'var(--ink)'}">${money(S.money)}</b></td></tr>
-        <tr><td><b>529 College Fund</b> (6% annual growth)</td><td><b>${money(S.fund)}</b></td></tr>
+        <tr><td>Take-home pay (${money(b.gross)} gross, ${Math.round(C.tax * 100)}% tax)</td><td style="color:var(--g)">+${money(b.takeHome)}/yr</td></tr>
+        <tr><td>Housing &amp; living (${LIFESTYLES[S.lifestyle].name})</td><td>${money(-b.living)}/yr</td></tr>
+        <tr><td>Kid essentials (${age < 12 ? 'food, clothes, gear' : 'teen food & activities'})</td><td>${money(-b.kidBasics)}/yr</td></tr>
+        ${b.careCost ? `<tr><td>Childcare (${S.flags.care === 'daycare' ? 'Daycare' : N.w + ' stays home'})</td><td>${money(-b.careCost)}/yr</td></tr>` : ''}
+        ${extras ? `<tr><td>Recurring services &amp; programs</td><td>${money(-extras)}/yr</td></tr>` : ''}
+        ${b.divorceCost ? `<tr><td>Separate household / support</td><td>${money(-b.divorceCost)}/yr</td></tr>` : ''}
+        ${b.spouseBonus ? `<tr><td>${N.w}'s career raise offset</td><td style="color:var(--g)">+${money(b.spouseBonus)}/yr</td></tr>` : ''}
+        ${b.contribYr ? `<tr><td>529 college contributions</td><td>${money(-b.contribYr)}/yr</td></tr>` : ''}
+        <tr><td><b>Net annual cash flow</b></td><td><b style="color:${b.netFlow >= 0 ? 'var(--g)' : 'var(--r)'}">${b.netFlow >= 0 ? '+' : ''}${money(b.netFlow)}/yr</b></td></tr>
+        <tr><td><b>Checking / Savings</b> ${S.money < 0 ? '<span style="color:var(--r)">(18% APR debt!)</span>' : ''}</td><td><b style="color:${S.money < 0 ? 'var(--r)' : 'var(--ink)'}">${money(S.money)}</b></td></tr>
+      </table>`;
+
+      // Living Standard selector
+      h += `<div class="budSec">
+        <div class="budHead"><span>Living Standard</span><small>${LIFESTYLES[S.lifestyle].desc}</small></div>
+        <div class="budSeg">
+          ${Object.entries(LIFESTYLES).map(([k, v]) => `
+            <button data-life="${k}" class="${S.lifestyle === k ? 'on' : ''}">
+              <b>${v.name}</b>
+              <small>${money(Math.round(C.living * v.mul))}/yr</small>
+            </button>`).join('')}
+        </div>
+      </div>`;
+
+      // Childcare Plan selector (editable anytime under age 5!)
+      if (age < 5) {
+        const curCare = S.flags.care || 'juggle';
+        h += `<div class="budSec">
+          <div class="budHead"><span>Childcare Plan ${age < 0.25 ? '(starts after leave)' : '(ages 0–5)'}</span><small>Cancel or switch anytime to save cash</small></div>
+          <div class="budSeg">
+            <button data-care="daycare" class="${curCare === 'daycare' ? 'on' : ''}"><b>Daycare</b><small>$13k/yr · 8–3 free</small></button>
+            <button data-care="home" class="${curCare === 'home' ? 'on' : ''}" ${S.divorced ? 'disabled' : ''}><b>${N.w} Home</b><small>$20k/yr · 1-on-1</small></button>
+            <button data-care="juggle" class="${curCare === 'juggle' ? 'on' : ''}"><b>Juggle / None</b><small>$0/yr · saves cash</small></button>
+          </div>
+        </div>`;
+      } else {
+        h += `<div class="budSec"><div class="budHead"><span>Childcare</span><small>${N.k} is in public school ($0/yr)</small></div></div>`;
+      }
+
+      // Optional Recurring Services & Programs (Hire or Cancel anytime!)
+      h += `<div class="budSec"><div class="budHead"><span>Recurring Services &amp; Programs</span><small>Toggle on or cancel anytime</small></div><div class="budToggles">`;
+      const svcRows = [
+        { k: 'cleaner', name: 'Bi-Weekly House Cleaner', cost: '$3.6k/yr', desc: '-35% house mess buildup', show: true },
+        { k: 'sitterHelp', name: 'Regular After-School Sitter', cost: '$4.2k/yr', desc: 'Free work commute & eases spouse load', show: age < 13 },
+        { k: 'travel', name: 'Travel Sports Team', cost: '$5.5k/yr', desc: 'High motor/grit; cancel anytime to save', show: age >= 11 && age < 16 },
+      ];
+      for (const sv of svcRows) {
+        if (!sv.show) continue;
+        const on = !!S.flags[sv.k];
+        h += `<button class="budRow ${on ? 'on' : ''}" data-svc="${sv.k}">
+          <span><b>${sv.name}</b> <small>${sv.cost} · ${sv.desc}</small></span>
+          <span class="pill">${on ? 'Active · Cancel' : 'Off · Enable'}</span>
+        </button>`;
+      }
+      h += `</div></div>`;
+    } else if (finTab === 'fund') {
+      h += `<table class="fin">
+        <tr><td><b>529 College Fund</b> (compounds 6%/yr)</td><td><b>${money(S.fund)}</b></td></tr>
+        <tr><td>Current monthly contribution</td><td>${S.contrib ? money(S.contrib) + '/mo (' + money(S.contrib * 12) + '/yr)' : 'Paused ($0)'}</td></tr>
         <tr><td>Projected at age 18</td><td style="color:${proj >= COLLEGE_COST ? 'var(--g)' : 'var(--y)'}">${money(proj)} / ${money(COLLEGE_COST)}</td></tr>
+        <tr><td>Net annual cash flow</td><td style="color:${b.netFlow >= 0 ? 'var(--g)' : 'var(--r)'}">${b.netFlow >= 0 ? '+' : ''}${money(b.netFlow)}/yr</td></tr>
       </table>
-      <p style="font-size:12.5px;color:var(--dim)">Monthly 529 contribution (press 1–5): early dollars roughly triple by age 18.</p>`;
+      <p style="font-size:12.5px;color:var(--dim)">Pick monthly 529 contribution (keys 1–5). Dollars invested early roughly triple by age 18.</p>`;
       CONTRIBS.forEach((c, i) => {
-        h += `<button class="ch ${S.contrib === c ? 'on' : ''}" data-cidx="${i}"><span class="k">${i + 1}</span><span>${c ? money(c) + ' / month' : 'Pause contributions ($0)'}</span></button>`;
+        h += `<button class="ch ${S.contrib === c ? 'on' : ''}" data-cidx="${i}"><span class="k">${i + 1}</span><span>${c ? money(c) + ' / month (' + money(c * 12) + '/yr)' : 'Pause contributions ($0)'}</span></button>`;
       });
     } else {
       h += `<p style="font-size:12.5px;color:var(--dim);margin-top:0">Upgrades physically appear in your house and permanently improve daily routines. Savings: <b>${money(S.money)}</b></p><div class="shopGrid">`;
@@ -386,6 +444,9 @@ export function createUI(callbacks) {
     if (!b) return;
     if (b.dataset.close) { toggleFin(false); return; }
     if (b.dataset.tab) { finTab = b.dataset.tab; sfx('click'); renderFin(); return; }
+    if (b.dataset.life) { if (setLifestyle(b.dataset.life)) renderFin(); return; }
+    if (b.dataset.care) { if (setChildcare(b.dataset.care)) renderFin(); return; }
+    if (b.dataset.svc) { if (toggleBudgetItem(b.dataset.svc)) renderFin(); return; }
     if (b.dataset.cidx != null) { getS().contrib = CONTRIBS[+b.dataset.cidx]; sfx('click'); renderFin(); return; }
     if (b.dataset.buy) { if (buyUpgrade(b.dataset.buy)) renderFin(); }
   });
@@ -560,7 +621,7 @@ export function createUI(callbacks) {
     isFinOpen: () => finOpen,
     isMapOpen: () => mapOpen,
     handleFinKey(n) {
-      if (finTab === 'budget' && n >= 1 && n <= CONTRIBS.length) {
+      if (finTab === 'fund' && n >= 1 && n <= CONTRIBS.length) {
         getS().contrib = CONTRIBS[n - 1];
         sfx('click');
         renderFin();

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dad Simulator</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍼</text></svg>">
-<link rel="stylesheet" href="./css/style.css">
+<link rel="stylesheet" href="./css/style.css?v=3">
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -97,8 +97,16 @@
 </div>
 
 <script type="importmap">
-{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "./js/sim.js":"./js/sim.js?v=3",
+  "./js/events.js":"./js/events.js?v=3",
+  "./js/world.js":"./js/world.js?v=3",
+  "./js/ui.js":"./js/ui.js?v=3",
+  "./js/audio.js":"./js/audio.js?v=3"
+}}
 </script>
-<script type="module" src="./js/main.js"></script>
+<script type="module" src="./js/main.js?v=3"></script>
 </body>
 </html>
